@@ -1,6 +1,6 @@
 ---
 id: SPEC-002
-status: IN_PROGRESS
+status: IMPLEMENTED
 feature: hotel-booking-mvp-holds-payments
 created: 2026-03-26
 updated: 2026-03-26
@@ -11,7 +11,7 @@ related-specs: []
 
 # Spec: MVP Motor de Reservas de Hotel (Búsqueda, Hold de 10min, Pago Idempotente, Confirmación)
 
-> **Estado:** `IN_PROGRESS`.
+> **Estado:** `IMPLEMENTED`.
 > **Ciclo de vida:** DRAFT → APPROVED → IN_PROGRESS → IMPLEMENTED → DEPRECATED
 > **Alcance:** HU0, HU1, HU2, HU3, HU5, HU6, HU7, HU8, HU11 | Excluidas: HU4, HU9, HU10 | QA: sin alcance en esta ejecución
 > **Stack Real (v2):** NestJS + PostgreSQL + TypeORM + class-validator + React 19 + Vite + CSS Modules

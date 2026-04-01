@@ -3,6 +3,8 @@ import { DataSource } from 'typeorm';
 import { Hotel } from '../../modules/hotels/entities/hotel.entity';
 import { Room, RoomType } from '../../modules/rooms/entities/room.entity';
 import { Hold } from '../../modules/holds/entities/hold.entity';
+import { Payment } from '../../modules/payments/entities/payment.entity';
+import { Reservation } from '../../modules/reservations/entities/reservation.entity';
 import * as dotenv from 'dotenv';
 
 dotenv.config({ path: '.env' });
@@ -14,7 +16,7 @@ const AppDataSource = new DataSource({
   username: process.env.DB_USER ?? 'hotel_user',
   password: process.env.DB_PASSWORD ?? 'hotel_pass',
   database: process.env.DB_NAME ?? 'hotel_booking',
-  entities: [Hotel, Room, Hold],
+  entities: [Hotel, Room, Hold, Payment, Reservation],
   synchronize: true,
   logging: false,
 });

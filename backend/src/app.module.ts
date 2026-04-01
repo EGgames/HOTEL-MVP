@@ -9,6 +9,7 @@ import { HoldsModule } from './modules/holds/holds.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { ReservationsModule } from './modules/reservations/reservations.module';
 import { WorkersModule } from './modules/workers/workers.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { WorkersModule } from './modules/workers/workers.module';
       inject: [ConfigService],
     }),
     ScheduleModule.forRoot(),
+    HealthModule,
     HotelsModule,
     RoomsModule,
     HoldsModule,

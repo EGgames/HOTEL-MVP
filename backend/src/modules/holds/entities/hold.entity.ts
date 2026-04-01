@@ -19,6 +19,8 @@ export enum HoldStatus {
 }
 
 @Entity('holds')
+@Index(['room_id', 'checkin', 'checkout'])
+@Index(['status', 'expires_at'])
 export class Hold {
   @PrimaryGeneratedColumn('uuid')
   id: string;
