@@ -167,6 +167,9 @@ jobs:
       - test-backend
       - test-frontend
       - build
+    outputs:
+      status:      ${{ steps.gate.outputs.status }}
+      failed_jobs: ${{ steps.gate.outputs.failed_jobs }}
     runs-on: ubuntu-latest
     steps:
       - name: Evaluate results
@@ -225,124 +228,37 @@ jobs:
             echo "QUALITY GATE PASSED — Safe to merge."
           fi
 
-      - name: Post PR comment — failed
-        if: always() && github.event_name == 'pull_request' && steps.gate.outputs.status == 'failed'
-        uses: actions/github-script@v7
-        env:
-          SECRET_SCAN: ${{ needs.secret-scan.result }}
-          LINT_BE:     ${{ needs.lint-backend.result }}
-          LINT_FE:     ${{ needs.lint-frontend.result }}
-          SAST:        ${{ needs.sast.result }}
-          DEP_SCAN:    ${{ needs.dependency-scan.result }}
-          TEST_BE:     ${{ needs.test-backend.result }}
-          TEST_FE:     ${{ needs.test-frontend.result }}
-          BUILD:       ${{ needs.build.result }}
-          FAILED_JOBS: ${{ steps.gate.outputs.failed_jobs }}
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const icon = (r) => r === 'success' ? '✅' : r === 'skipped' ? '⏭️' : '❌';
-            const sha  = context.sha.slice(0, 7);
-            const url  = context.payload.pull_request.html_url;
-            const body = [
-              '## ❌ Quality Gate — FAILED',
-              '',
-              `**Merge bloqueado.** Jobs fallidos: \`${process.env.FAILED_JOBS}\``,
-              '',
-              '| Job | Estado |',
-              '|-----|--------|',
-              `| Secret Scan     | ${icon(process.env.SECRET_SCAN)} ${process.env.SECRET_SCAN} |`,
-              `| Lint Backend    | ${icon(process.env.LINT_BE)} ${process.env.LINT_BE} |`,
-              `| Lint Frontend   | ${icon(process.env.LINT_FE)} ${process.env.LINT_FE} |`,
-              `| SAST (CodeQL)   | ${icon(process.env.SAST)} ${process.env.SAST} |`,
-              `| Dependency Scan | ${icon(process.env.DEP_SCAN)} ${process.env.DEP_SCAN} |`,
-              `| Tests Backend   | ${icon(process.env.TEST_BE)} ${process.env.TEST_BE} |`,
-              `| Tests Frontend  | ${icon(process.env.TEST_FE)} ${process.env.TEST_FE} |`,
-              `| Docker Build    | ${icon(process.env.BUILD)} ${process.env.BUILD} |`,
-              '',
-              `> Corrige los errores y haz push nuevamente. [Ver logs](${url}/checks) · commit \`${sha}\``,
-            ].join('\n');
-
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo:  context.repo.repo,
-              issue_number: context.issue.number,
-            });
-            const prev = comments.find(
-              c => c.user.login === 'github-actions[bot]' && c.body.includes('Quality Gate')
-            );
-            if (prev) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner, repo: context.repo.repo,
-                comment_id: prev.id, body,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner, repo: context.repo.repo,
-                issue_number: context.issue.number, body,
-              });
-            }
-
-      - name: Post PR comment — passed
-        if: always() && github.event_name == 'pull_request' && steps.gate.outputs.status == 'passed'
-        uses: actions/github-script@v7
-        env:
-          SECRET_SCAN: ${{ needs.secret-scan.result }}
-          LINT_BE:     ${{ needs.lint-backend.result }}
-          LINT_FE:     ${{ needs.lint-frontend.result }}
-          SAST:        ${{ needs.sast.result }}
-          DEP_SCAN:    ${{ needs.dependency-scan.result }}
-          TEST_BE:     ${{ needs.test-backend.result }}
-          TEST_FE:     ${{ needs.test-frontend.result }}
-          BUILD:       ${{ needs.build.result }}
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const icon = (r) => r === 'success' ? '✅' : r === 'skipped' ? '⏭️' : '❌';
-            const sha  = context.sha.slice(0, 7);
-            const url  = context.payload.pull_request.html_url;
-            const body = [
-              '## ✅ Quality Gate — PASSED',
-              '',
-              '**Este PR está listo para hacer merge.** Todos los checks pasaron correctamente.',
-              '',
-              '| Job | Estado |',
-              '|-----|--------|',
-              `| Secret Scan     | ${icon(process.env.SECRET_SCAN)} ${process.env.SECRET_SCAN} |`,
-              `| Lint Backend    | ${icon(process.env.LINT_BE)} ${process.env.LINT_BE} |`,
-              `| Lint Frontend   | ${icon(process.env.LINT_FE)} ${process.env.LINT_FE} |`,
-              `| SAST (CodeQL)   | ${icon(process.env.SAST)} ${process.env.SAST} |`,
-              `| Dependency Scan | ${icon(process.env.DEP_SCAN)} ${process.env.DEP_SCAN} |`,
-              `| Tests Backend   | ${icon(process.env.TEST_BE)} ${process.env.TEST_BE} |`,
-              `| Tests Frontend  | ${icon(process.env.TEST_FE)} ${process.env.TEST_FE} |`,
-              `| Docker Build    | ${icon(process.env.BUILD)} ${process.env.BUILD} |`,
-              '',
-              `> [Ver logs](${url}/checks) · commit \`${sha}\``,
-            ].join('\n');
-
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo:  context.repo.repo,
-              issue_number: context.issue.number,
-            });
-            const prev = comments.find(
-              c => c.user.login === 'github-actions[bot]' && c.body.includes('Quality Gate')
-            );
-            if (prev) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner, repo: context.repo.repo,
-                comment_id: prev.id, body,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner, repo: context.repo.repo,
-                issue_number: context.issue.number, body,
-              });
-            }
-
       - name: Enforce gate
         if: always() && steps.gate.outputs.status == 'failed'
         run: |
           echo "QUALITY GATE FAILED — Merge bloqueado."
           echo "Revisa los jobs anteriores para ver el detalle del error."
           exit 1
+
+  pipeline-report:
+    name: "Pipeline Report"
+    if: always() && github.event_name == 'pull_request'
+    needs:
+      - quality-gate
+      - secret-scan
+      - lint-backend
+      - lint-frontend
+      - sast
+      - dependency-scan
+      - test-backend
+      - test-frontend
+      - build
+    uses: ./.github/workflows/reusable-pipeline-report.yml
+    with:
+      secret-scan-result:   ${{ needs.secret-scan.result }}
+      lint-backend-result:  ${{ needs.lint-backend.result }}
+      lint-frontend-result: ${{ needs.lint-frontend.result }}
+      sast-result:          ${{ needs.sast.result }}
+      dep-scan-result:      ${{ needs.dependency-scan.result }}
+      test-backend-result:  ${{ needs.test-backend.result }}
+      test-frontend-result: ${{ needs.test-frontend.result }}
+      build-result:         ${{ needs.build.result }}
+      overall-status:       ${{ needs.quality-gate.outputs.status }}
+      failed-jobs:          ${{ needs.quality-gate.outputs.failed_jobs }}
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}
