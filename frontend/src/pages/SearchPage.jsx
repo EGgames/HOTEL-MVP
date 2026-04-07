@@ -9,7 +9,7 @@ import styles from './SearchPage.module.css';
 export function SearchPage() {
   const navigate = useNavigate();
   const { rooms, isLoading, error: searchError, search } = useAvailableRooms();
-  const { isLoading: isHolding, error: holdError, requestHold } = useRoomHold();
+  const { isLoading: _isHolding, error: holdError, requestHold } = useRoomHold();
   const [selectingRoomId, setSelectingRoomId] = useState(null);
   const [dates, setDates] = useState({ checkin: '', checkout: '' });
   const [toastError, setToastError] = useState('');
