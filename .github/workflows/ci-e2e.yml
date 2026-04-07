@@ -36,6 +36,14 @@ jobs:
         id: meta
         run: echo "dispatch-time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
 
+      - name: Validar QA_DISPATCH_TOKEN
+        run: |
+          if [ -z "${{ secrets.QA_DISPATCH_TOKEN }}" ]; then
+            echo "::error::El secret QA_DISPATCH_TOKEN no está configurado en este repositorio."
+            echo "::error::Ve a Settings → Secrets → Actions y crea un PAT clásico con scope 'repo'."
+            exit 1
+          fi
+
       - name: Dispatch → HOTEL_QA_TEST_KARATE
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
         with:
