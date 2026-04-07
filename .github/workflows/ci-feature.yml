@@ -1,4 +1,4 @@
-name: CI — Fast Validation (Feature)
+name: CI — Fast Validation Push
 
 on:
   push:
