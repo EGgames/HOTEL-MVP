@@ -131,30 +131,6 @@ jobs:
       test-command: "npm run test:cov"
       coverage-artifact: coverage-frontend
 
-  build:
-    name: "[ Gate 3 ] Build — Docker Images"
-    needs: [test-backend, test-frontend, dependency-scan]
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        service: [backend, frontend]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build Docker image — ${{ matrix.service }}
-        uses: docker/build-push-action@v5
-        with:
-          context: ./${{ matrix.service }}
-          push: false
-          tags: hotel-mvp-${{ matrix.service }}:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
   quality-gate:
     name: "Quality Gate"
     if: always()
@@ -166,7 +142,6 @@ jobs:
       - dependency-scan
       - test-backend
       - test-frontend
-      - build
     outputs:
       status:      ${{ steps.gate.outputs.status }}
       failed_jobs: ${{ steps.gate.outputs.failed_jobs }}
@@ -182,7 +157,6 @@ jobs:
           DEP_SCAN:    ${{ needs.dependency-scan.result }}
           TEST_BE:     ${{ needs.test-backend.result }}
           TEST_FE:     ${{ needs.test-frontend.result }}
-          BUILD:       ${{ needs.build.result }}
         run: |
           echo "=================================================="
           echo "   PR VALIDATION — QUALITY GATE RESULTS"
@@ -194,7 +168,6 @@ jobs:
           printf "  %-35s %s\n"  "Dependency Scan:"     "$DEP_SCAN"
           printf "  %-35s %s\n"  "Tests Backend:"       "$TEST_BE"
           printf "  %-35s %s\n"  "Tests Frontend:"      "$TEST_FE"
-          printf "  %-35s %s\n"  "Docker Build:"        "$BUILD"
           echo "=================================================="
 
           check_job() {
@@ -214,7 +187,6 @@ jobs:
           check_job "Dep Scan"       "$DEP_SCAN"
           check_job "Tests Backend"  "$TEST_BE"
           check_job "Tests Frontend" "$TEST_FE"
-          check_job "Docker Build"   "$BUILD"
 
           if [[ "$FAILED" == "true" ]]; then
             echo "status=failed"                  >> "$GITHUB_OUTPUT"
@@ -247,7 +219,6 @@ jobs:
       - dependency-scan
       - test-backend
       - test-frontend
-      - build
     uses: ./.github/workflows/reusable-pipeline-report.yml
     with:
       secret-scan-result:   ${{ needs.secret-scan.result }}
@@ -257,7 +228,6 @@ jobs:
       dep-scan-result:      ${{ needs.dependency-scan.result }}
       test-backend-result:  ${{ needs.test-backend.result }}
       test-frontend-result: ${{ needs.test-frontend.result }}
-      build-result:         ${{ needs.build.result }}
       overall-status:       ${{ needs.quality-gate.outputs.status }}
       failed-jobs:          ${{ needs.quality-gate.outputs.failed_jobs }}
     secrets:

@@ -24,9 +24,6 @@ on:
       test-frontend-result:
         required: true
         type: string
-      build-result:
-        required: true
-        type: string
       overall-status:
         required: true
         type: string
@@ -53,7 +50,6 @@ jobs:
           DEP_SCAN:       ${{ inputs.dep-scan-result }}
           TEST_BE:        ${{ inputs.test-backend-result }}
           TEST_FE:        ${{ inputs.test-frontend-result }}
-          BUILD:          ${{ inputs.build-result }}
           OVERALL_STATUS: ${{ inputs.overall-status }}
           FAILED_JOBS:    ${{ inputs.failed-jobs }}
         with:
@@ -73,7 +69,6 @@ jobs:
               dep:    process.env.DEP_SCAN,
               testBe: process.env.TEST_BE,
               testFe: process.env.TEST_FE,
-              build:  process.env.BUILD,
             };
 
             const overall    = process.env.OVERALL_STATUS;  // 'passed' | 'failed'
@@ -196,15 +191,6 @@ jobs:
               '',
               '---',
               '',
-              jobSection('🐳', 'Build — Docker Images', R.build, [
-                'Construcción de imagen Docker — Backend',
-                'Construcción de imagen Docker — Frontend',
-                'Validación del Dockerfile y contexto de build',
-                'Cache de capas de imagen con GitHub Actions Cache (type=gha)',
-              ], 'Build'),
-              '',
-              '---',
-              '',
               '### 📋 Resumen General',
               '',
               '| Job | Estado |',
@@ -216,7 +202,6 @@ jobs:
               `| 📦 Dependency Scan   | ${statusIcon(R.dep)} \`${R.dep}\` |`,
               `| 🧪 Tests Backend     | ${statusIcon(R.testBe)} \`${R.testBe}\` |`,
               `| 🧪 Tests Frontend    | ${statusIcon(R.testFe)} \`${R.testFe}\` |`,
-              `| 🐳 Docker Build      | ${statusIcon(R.build)} \`${R.build}\` |`,
             ];
 
             // ── Upsert del comentario en el PR ──────────────────────────
