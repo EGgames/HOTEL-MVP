@@ -1,13 +1,3 @@
-# ─────────────────────────────────────────────────────────────────────────────
-# CI — Shift Left Quality Gate
-#
-# Objetivo      : Detectar errores ANTES de fusionar ramas (main / dev).
-# Estrategia    : Secret Scan → (Lint ∥ SAST) → Tests → Quality Gate
-# Triggers      : push y pull_request sobre main y dev
-# Bloqueo de PR : Configura "quality-gate" como Required Status Check en
-#                 GitHub → Settings → Branches → Branch protection rules.
-# ─────────────────────────────────────────────────────────────────────────────
-
 name: CI — Shift Left
 
 on:
@@ -23,24 +13,17 @@ on:
         required: false
         default: "Ejecución manual"
 
-# Cancela runs anteriores del mismo workflow en la misma rama/PR para dar
-# feedback rápido cuando se hace force-push o se actualiza un PR.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Permisos mínimos necesarios (principio de least privilege).
 permissions:
-  contents: read          # checkout del código
-  pull-requests: write    # comentar en PRs (gitleaks, coverage)
-  security-events: write  # subir resultados SARIF a Security tab (CodeQL)
-  actions: read           # requerido por CodeQL en repos privados
+  contents: read
+  pull-requests: write
+  security-events: write
+  actions: read
 
 jobs:
-  # ───────────────────────────────────────────────────────────────────────────
-  # GATE 0 — Secret Scan
-  # Corre primero; si hay secretos expuestos, nada más se ejecuta.
-  # ───────────────────────────────────────────────────────────────────────────
   secret-scan:
     name: "[ Gate 0 ] Secret Scan"
     uses: ./.github/workflows/reusable-secrets-scan.yml
@@ -48,9 +31,6 @@ jobs:
       contents: read
       pull-requests: write
 
-  # ───────────────────────────────────────────────────────────────────────────
-  # GATE 1 — Linting (paralelo: backend ∥ frontend ∥ SAST)
-  # ───────────────────────────────────────────────────────────────────────────
   lint-backend:
     name: "[ Gate 1a ] Lint — Backend (TypeScript)"
     needs: secret-scan
@@ -60,7 +40,6 @@ jobs:
     with:
       working-directory: backend
       node-version: "20"
-      # Sobreescribe el script para evitar --fix en CI y exigir 0 warnings
       lint-command: >-
         npx eslint "{src,apps,libs,test}/**/*.ts"
         --max-warnings 0
@@ -89,10 +68,6 @@ jobs:
       security-events: write
       actions: read
 
-  # ───────────────────────────────────────────────────────────────────────────
-  # GATE 2 — Unit Tests + Coverage (paralelo: backend ∥ frontend)
-  # Depende de que lint del mismo lado pase primero (fast-fail).
-  # ───────────────────────────────────────────────────────────────────────────
   test-backend:
     name: "[ Gate 2a ] Tests — Backend (Jest)"
     needs: lint-backend
@@ -102,8 +77,6 @@ jobs:
     with:
       working-directory: backend
       node-version: "20"
-      # --ci: modo CI de Jest (no interactivo, falla ante snapshots obsoletos)
-      # --forceExit: libera handles abiertos para que el runner no quede colgado
       test-command: "npx jest --coverage --ci --forceExit"
       coverage-artifact: coverage-backend
 
@@ -116,14 +89,9 @@ jobs:
     with:
       working-directory: frontend
       node-version: "20"
-      # vitest run --coverage ya incluye el flag --run (no watch)
       test-command: "npm run test:cov"
       coverage-artifact: coverage-frontend
 
-  # ───────────────────────────────────────────────────────────────────────────
-  # QUALITY GATE — Job resumen; este es el Required Status Check del repo.
-  # Si cualquier job anterior falla, este job falla y bloquea el merge.
-  # ───────────────────────────────────────────────────────────────────────────
   quality-gate:
     name: "Quality Gate"
     if: always()

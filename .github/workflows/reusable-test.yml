@@ -1,9 +1,3 @@
-# ─────────────────────────────────────────────────────────────────────────────
-# Reusable — Unit Tests + Coverage
-#
-# Uso interno: llamado desde ci.yml para backend (Jest) y frontend (Vitest).
-# Sube el reporte de cobertura como artifact para revisión posterior.
-# ─────────────────────────────────────────────────────────────────────────────
 
 name: Reusable — Unit Tests
 
@@ -33,7 +27,7 @@ jobs:
   test:
     name: Tests — ${{ inputs.working-directory }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10  # Fail-fast: si los tests tardan >10 min, algo está mal
+    timeout-minutes: 10
 
     defaults:
       run:
@@ -59,12 +53,10 @@ jobs:
         env:
           NODE_ENV: test
           CI: "true"
-          # Evita que NestJS intente conectar a servicios externos en tests unitarios
           DB_HOST: localhost
           DB_PORT: "5432"
 
       - name: Upload coverage report
-        # Sube siempre el reporte (incluso si tests fallan) para poder analizar
         if: always()
         uses: actions/upload-artifact@v4
         with:

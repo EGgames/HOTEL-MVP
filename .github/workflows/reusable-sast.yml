@@ -1,12 +1,3 @@
-# ─────────────────────────────────────────────────────────────────────────────
-# Reusable — SAST con CodeQL
-#
-# Analiza TypeScript (backend) y JavaScript (frontend) buscando vulnerabilidades
-# de seguridad usando las queries "security-and-quality" de CodeQL.
-# Los resultados aparecen en GitHub → Security → Code scanning alerts.
-#
-# Documentación: https://docs.github.com/en/code-security/code-scanning
-# ─────────────────────────────────────────────────────────────────────────────
 
 name: Reusable — SAST (CodeQL)
 
@@ -14,9 +5,9 @@ on:
   workflow_call:
 
 permissions:
-  actions: read           # requerido por CodeQL en repos privados
+  actions: read
   contents: read
-  security-events: write  # subir SARIF al Security tab
+  security-events: write
 
 jobs:
   codeql:
@@ -28,19 +19,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Inicializa CodeQL con el lenguaje javascript-typescript.
-      # Cubre tanto archivos .ts (backend NestJS) como .js/.jsx (frontend React).
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
           languages: javascript-typescript
-          # security-and-quality incluye:
-          # - CWE Top 25 vulnerabilities
-          # - OWASP Top 10
-          # - Quality issues (dead code, injection risks, etc.)
           queries: security-and-quality
 
-      # Auto-build: para JS/TS no requiere compilación; CodeQL analiza las fuentes.
       - name: Auto-build
         uses: github/codeql-action/autobuild@v3
 
@@ -48,5 +32,4 @@ jobs:
         uses: github/codeql-action/analyze@v3
         with:
           category: "/language:javascript-typescript"
-          # Sube el SARIF al Security tab para revisión centralizada
           upload: true
