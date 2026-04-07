@@ -1,0 +1,84 @@
+
+name: Reusable — Unit Tests
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: "Directorio donde ejecutar los tests"
+        required: true
+        type: string
+      node-version:
+        description: "Versión de Node.js"
+        required: false
+        type: string
+        default: "20"
+      test-command:
+        description: "Comando para correr los tests con cobertura"
+        required: true
+        type: string
+      coverage-artifact:
+        description: "Nombre del artifact para el reporte de cobertura"
+        required: false
+        type: string
+        default: coverage-report
+
+jobs:
+  test:
+    name: Tests — ${{ inputs.working-directory }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ inputs.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Run tests with coverage
+        id: tests
+        run: ${{ inputs.test-command }}
+        env:
+          NODE_ENV: test
+          CI: "true"
+          DB_HOST: localhost
+          DB_PORT: "5432"
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.coverage-artifact }}-${{ github.sha }}
+          path: ${{ inputs.working-directory }}/coverage/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Annotate test summary
+        if: always()
+        run: |
+          echo "## Test Results — ${{ inputs.working-directory }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "${{ steps.tests.outcome }}" == "success" ]]; then
+            echo "**Status:** PASSED" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "**Status:** FAILED" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f coverage/coverage-summary.json ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "### Coverage Summary" >> "$GITHUB_STEP_SUMMARY"
+            echo "\`\`\`json" >> "$GITHUB_STEP_SUMMARY"
+            cat coverage/coverage-summary.json >> "$GITHUB_STEP_SUMMARY"
+            echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
+          fi

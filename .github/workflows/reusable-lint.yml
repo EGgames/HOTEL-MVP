@@ -1,0 +1,56 @@
+
+name: Reusable — ESLint
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: "Directorio donde ejecutar el lint (ej: backend, frontend)"
+        required: true
+        type: string
+      node-version:
+        description: "Versión de Node.js"
+        required: false
+        type: string
+        default: "20"
+      lint-command:
+        description: "Comando ESLint a ejecutar (sin 'npm run', directamente npx o npm)"
+        required: false
+        type: string
+        default: "npm run lint"
+
+jobs:
+  lint:
+    name: ESLint — ${{ inputs.working-directory }}
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ inputs.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Run ESLint
+        id: eslint
+        run: ${{ inputs.lint-command }}
+
+      - name: Upload lint report on failure
+        if: failure() && steps.eslint.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-report-${{ inputs.working-directory }}-${{ github.sha }}
+          path: ${{ inputs.working-directory }}/eslint-report.*
+          retention-days: 7
+          if-no-files-found: ignore

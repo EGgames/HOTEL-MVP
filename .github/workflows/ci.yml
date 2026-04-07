@@ -1,0 +1,143 @@
+name: CI — Shift Left
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Motivo de la ejecución manual (opcional)"
+        required: false
+        default: "Ejecución manual"
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write
+  actions: read
+
+jobs:
+  secret-scan:
+    name: "[ Gate 0 ] Secret Scan"
+    uses: ./.github/workflows/reusable-secrets-scan.yml
+    permissions:
+      contents: read
+      pull-requests: write
+
+  lint-backend:
+    name: "[ Gate 1a ] Lint — Backend (TypeScript)"
+    needs: secret-scan
+    uses: ./.github/workflows/reusable-lint.yml
+    permissions:
+      contents: read
+    with:
+      working-directory: backend
+      node-version: "20"
+      lint-command: >-
+        npx eslint "{src,apps,libs,test}/**/*.ts"
+        --max-warnings 0
+        --format stylish
+
+  lint-frontend:
+    name: "[ Gate 1b ] Lint — Frontend (React)"
+    needs: secret-scan
+    uses: ./.github/workflows/reusable-lint.yml
+    permissions:
+      contents: read
+    with:
+      working-directory: frontend
+      node-version: "20"
+      lint-command: >-
+        npx eslint src --ext .js,.jsx
+        --max-warnings 0
+        --format stylish
+
+  sast:
+    name: "[ Gate 1c ] SAST — CodeQL (JS / TS)"
+    needs: secret-scan
+    uses: ./.github/workflows/reusable-sast.yml
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+
+  test-backend:
+    name: "[ Gate 2a ] Tests — Backend (Jest)"
+    needs: lint-backend
+    uses: ./.github/workflows/reusable-test.yml
+    permissions:
+      contents: read
+    with:
+      working-directory: backend
+      node-version: "20"
+      test-command: "npx jest --coverage --ci --forceExit"
+      coverage-artifact: coverage-backend
+
+  test-frontend:
+    name: "[ Gate 2b ] Tests — Frontend (Vitest)"
+    needs: lint-frontend
+    uses: ./.github/workflows/reusable-test.yml
+    permissions:
+      contents: read
+    with:
+      working-directory: frontend
+      node-version: "20"
+      test-command: "npm run test:cov"
+      coverage-artifact: coverage-frontend
+
+  quality-gate:
+    name: "Quality Gate"
+    if: always()
+    needs:
+      - secret-scan
+      - lint-backend
+      - lint-frontend
+      - sast
+      - test-backend
+      - test-frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Evaluate results
+        env:
+          SECRET_SCAN: ${{ needs.secret-scan.result }}
+          LINT_BE:     ${{ needs.lint-backend.result }}
+          LINT_FE:     ${{ needs.lint-frontend.result }}
+          SAST:        ${{ needs.sast.result }}
+          TEST_BE:     ${{ needs.test-backend.result }}
+          TEST_FE:     ${{ needs.test-frontend.result }}
+        run: |
+          echo "=================================================="
+          echo "   SHIFT LEFT — QUALITY GATE RESULTS"
+          echo "=================================================="
+          printf "  %-35s %s\n"  "Secret Scan:"       "$SECRET_SCAN"
+          printf "  %-35s %s\n"  "Lint Backend:"      "$LINT_BE"
+          printf "  %-35s %s\n"  "Lint Frontend:"     "$LINT_FE"
+          printf "  %-35s %s\n"  "SAST (CodeQL):"     "$SAST"
+          printf "  %-35s %s\n"  "Unit Tests Backend:" "$TEST_BE"
+          printf "  %-35s %s\n"  "Unit Tests Frontend:" "$TEST_FE"
+          echo "=================================================="
+
+          FAILED=false
+          for RESULT in "$SECRET_SCAN" "$LINT_BE" "$LINT_FE" "$SAST" "$TEST_BE" "$TEST_FE"; do
+            if [[ "$RESULT" == "failure" || "$RESULT" == "cancelled" ]]; then
+              FAILED=true
+              break
+            fi
+          done
+
+          if [[ "$FAILED" == "true" ]]; then
+            echo ""
+            echo "QUALITY GATE FAILED — Merge bloqueado."
+            echo "Revisa los jobs anteriores para ver el detalle del error."
+            exit 1
+          fi
+
+          echo ""
+          echo "QUALITY GATE PASSED — Safe to merge."
