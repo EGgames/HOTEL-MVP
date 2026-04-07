@@ -185,7 +185,7 @@ jobs:
           BUILD:       ${{ needs.build.result }}
         run: |
           echo "=================================================="
-          echo "   SHIFT LEFT — QUALITY GATE RESULTS"
+          echo "   PR VALIDATION — QUALITY GATE RESULTS"
           echo "=================================================="
           printf "  %-35s %s\n"  "Secret Scan:"         "$SECRET_SCAN"
           printf "  %-35s %s\n"  "Lint Backend:"        "$LINT_BE"

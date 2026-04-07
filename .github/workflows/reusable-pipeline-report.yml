@@ -129,7 +129,7 @@ jobs:
 
             // ── Construcción del body ───────────────────────────────────
             const sections = [
-              `# ${overallIcon} Reporte de Pipeline — CI Shift Left`,
+              `# ${overallIcon} Reporte de Pipeline — PR Validation`,
               '',
               `**Estado General:** ${overallIcon} ${overallLabel}${failedLine}`,
               '',
