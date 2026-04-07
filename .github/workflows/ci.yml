@@ -2,9 +2,13 @@ name: CI — Shift Left
 
 on:
   push:
-    branches: [main, dev]
+    branches:
+      - main
+      - dev
   pull_request:
-    branches: [main, dev]
+    branches:
+      - main
+      - dev
     types: [opened, synchronize, reopened]
   workflow_dispatch:
     inputs:
