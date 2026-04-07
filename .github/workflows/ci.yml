@@ -16,6 +16,12 @@ on:
   pull_request:
     branches: [main, dev]
     types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Motivo de la ejecución manual (opcional)"
+        required: false
+        default: "Ejecución manual"
 
 # Cancela runs anteriores del mismo workflow en la misma rama/PR para dar
 # feedback rápido cuando se hace force-push o se actualiza un PR.
