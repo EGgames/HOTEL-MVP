@@ -3,7 +3,6 @@ import { getRepositoryToken, getDataSourceToken } from '@nestjs/typeorm';
 import {
   NotFoundException,
   BadRequestException,
-  HttpException,
   HttpStatus,
 } from '@nestjs/common';
 import { PaymentsService } from './payments.service';

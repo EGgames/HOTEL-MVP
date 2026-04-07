@@ -4,7 +4,7 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 import { RoomsService } from './rooms.service';
 import { Room } from './entities/room.entity';
 import { Hold, HoldStatus } from '../holds/entities/hold.entity';
-import { Reservation, ReservationStatus } from '../reservations/entities/reservation.entity';
+import { Reservation } from '../reservations/entities/reservation.entity';
 
 describe('RoomsService', () => {
   let service: RoomsService;
