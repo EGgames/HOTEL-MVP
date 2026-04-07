@@ -1,4 +1,4 @@
-name: CI — Shift Left
+name: CI — PR Validation
 
 on:
   push:
