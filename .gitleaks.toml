@@ -16,20 +16,17 @@ useDefault = true
 [allowlist]
   description = "Exclusiones globales para evitar falsos positivos"
   paths = [
-    # Archivos de ejemplo/template (valores placeholder, no reales)
-    ".env.example",
-    ".env.template",
-    # Archivos generados o de dependencias (no código propio)
+    ".env\\.example",
+    ".env\\.template",
     "node_modules",
-    "package-lock.json",
+    "package-lock\\.json",
     "dist",
     "coverage",
-    # Archivos de test: pueden tener tokens de ejemplo hardcodeados para mocks
-    "**/*.spec.ts",
-    "**/*.spec.js",
-    "**/*.test.ts",
-    "**/*.test.js",
-    "**/__tests__/**",
+    "\\.spec\\.ts$",
+    "\\.spec\\.js$",
+    "\\.test\\.ts$",
+    "\\.test\\.js$",
+    "__tests__",
   ]
 
 # ─────────────────────────────────────────────────────────────────────────────
