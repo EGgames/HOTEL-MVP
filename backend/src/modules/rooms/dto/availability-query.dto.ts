@@ -1,5 +1,4 @@
 import { IsDateString, IsOptional, IsUUID, Validate } from 'class-validator';
-import { Transform } from 'class-transformer';
 import { ValidatorConstraint, ValidatorConstraintInterface, ValidationArguments } from 'class-validator';
 
 @ValidatorConstraint({ name: 'isAfterCheckin', async: false })

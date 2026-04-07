@@ -7,7 +7,6 @@ import {
   ManyToOne,
   OneToMany,
   JoinColumn,
-  Index,
   Unique,
 } from 'typeorm';
 import { Hotel } from '../../hotels/entities/hotel.entity';
