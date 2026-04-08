@@ -1,4 +1,4 @@
-import { validate } from 'class-validator';
+import { validate, ValidationArguments } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 import { AvailabilityQueryDto, IsAfterCheckin, IsNotInPast } from './availability-query.dto';
 
@@ -91,22 +91,22 @@ describe('IsAfterCheckin', () => {
   const validator = new IsAfterCheckin();
 
   it('returns true when checkout is after checkin', () => {
-    const args = { object: { checkin: '2099-01-01' } } as any;
+    const args = { object: { checkin: '2099-01-01' } } as ValidationArguments;
     expect(validator.validate('2099-01-02', args)).toBe(true);
   });
 
   it('returns false when checkout is before checkin', () => {
-    const args = { object: { checkin: '2099-01-05' } } as any;
+    const args = { object: { checkin: '2099-01-05' } } as ValidationArguments;
     expect(validator.validate('2099-01-01', args)).toBe(false);
   });
 
   it('returns false when checkout is empty', () => {
-    const args = { object: { checkin: '2099-01-01' } } as any;
+    const args = { object: { checkin: '2099-01-01' } } as ValidationArguments;
     expect(validator.validate('', args)).toBe(false);
   });
 
   it('returns false when checkin is missing', () => {
-    const args = { object: {} } as any;
+    const args = { object: {} } as ValidationArguments;
     expect(validator.validate('2099-01-02', args)).toBe(false);
   });
 
