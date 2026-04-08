@@ -1,4 +1,5 @@
 import { Test } from '@nestjs/testing';
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { AdminRoomsController } from './admin-rooms.controller';
 import { AdminRoomsService } from '../services/admin-rooms.service';
 

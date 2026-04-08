@@ -1,9 +1,10 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { AdminCustomersService } from './admin-customers.service';
 import { Customer } from '../entities/customer.entity';
-import { Reservation, ReservationStatus } from '../../reservations/entities/reservation.entity';
+import { Reservation } from '../../reservations/entities/reservation.entity';
 
 describe('AdminCustomersService', () => {
   let service: AdminCustomersService;
