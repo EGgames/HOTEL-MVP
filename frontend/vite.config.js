@@ -18,6 +18,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './src/setupTests.js',
     coverage: {
+      exclude: ['src/main.jsx', '.eslintrc.cjs'],
       thresholds: {
         branches: 80,
         functions: 80,
