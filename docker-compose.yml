@@ -65,7 +65,7 @@ services:
       - /app/node_modules
 
   mailhog:
-    image: mailhog/mailhog:latest
+    image: axllent/mailpit:latest
     container_name: hotel_mailhog
     ports:
       - '1025:1025'
