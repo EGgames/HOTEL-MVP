@@ -6,7 +6,7 @@ Este MVP implementa un motor de reservas de hotel centrado en la lógica de nego
 
 El sistema prioriza la consistencia del inventario con un manejo de concurrencia simple, evitando dobles reservas mediante bloqueo pesimista (transacción + `SELECT ... FOR UPDATE`) y una expiración automática de bloqueos (un estimado de 10 minutos). El frontend (React) expone un flujo de búsqueda → selección → check-out con contador regresivo visible y notificaciones de estado.
 
-No se incluye autenticación ni administración avanzada; los datos iniciales (hotel/habitaciones/tarifas básicas) se cargan vía seeder.
+El sistema incluye un módulo de administración con autenticación protegida, dashboard operativo, gestión de clientes, gestión de habitaciones y manejo manual de reservas. El usuario invitado cuenta con filtros de búsqueda avanzados y recibe confirmación vía QR y correo electrónico. Los datos iniciales (hotel/habitaciones/tarifas básicas) se cargan vía seeder.
 
 
 ## 2. Alcance (IN/OUT)
@@ -16,31 +16,49 @@ No se incluye autenticación ni administración avanzada; los datos iniciales (h
 - Reducir el riesgo de sobreventa (double booking) a ~0 en el flujo MVP.
 - Incrementar conversión al proteger inventario durante el pago (hold de 10 minutos).
 - Liberar automáticamente inventario bloqueado para evitar pérdida de ventas.
+- Proveer al administrador visibilidad operativa en tiempo real (métricas, clientes, reservas).
+- Mejorar la experiencia post-reserva del viajero con confirmación digital (QR + email).
 
 ### 2.2 Objetivos de usuario
 
 - Permitir al viajero seleccionar una habitación y completar el pago con la tranquilidad de que la habitación permanecerá bloqueada durante 10 minutos.
 - Dar visibilidad clara del tiempo restante de bloqueo en el check-out.
+- Permitir al viajero filtrar habitaciones por ciudad, país y presupuesto.
+- Entregar al viajero un código de reserva, QR y correo de confirmación al completar el pago.
 - Permitir al administrador del hotel recuperar inventario automáticamente cuando el pago no se completa.
+- Proveer al administrador un panel centralizado con métricas, CRUD de clientes, CRUD de habitaciones y gestión de reservas.
+- Permitir al administrador verificar reservas mediante código o QR.
 
 ### 2.3 Fuera de alcance
 
 - Cancelaciones, cambios de fecha, reembolsos o políticas de penalidad.
-- Registro/login, perfiles, programas de lealtad.
+- Registro de usuarios viajeros (el viajero opera sin login).
 - Multidivisa o integración con pasarelas reales.
-- Panel de administración, reportes históricos avanzados.
+- Programas de lealtad.
 
 ## 3. Usuarios y roles
 
 ### 3.1 Usuarios
 
-- **Viajero (huésped)**: busca una habitación disponible, la bloquea durante el check-out y completa el pago dentro de un límite de tiempo, con confirmación inmediata.
-- **Administrador del hotel**: necesita que el inventario no quede “secuestrado” por bloqueos abandonados; requiere liberación automática y consistencia del estado.
+- **Viajero (huésped)**: busca una habitación disponible usando filtros de ciudad, país y presupuesto; la bloquea durante el check-out; completa el pago dentro de un límite de tiempo; recibe confirmación con código de reserva, QR y correo electrónico.
+- **Administrador del hotel**: gestiona el sistema a través de un panel protegido con credenciales. Tiene acceso a dashboard de métricas, CRUD de clientes, CRUD de habitaciones, módulo de reservas y verificación de reservas por código/QR.
+
+### 3.3 Objetivos de negocio por actor
+
+| Actor | Objetivo cuantificable | Umbral de éxito MVP |
+| :--- | :--- | :--- |
+| **Viajero** | Completar una reserva desde búsqueda hasta confirmación sin errores del sistema. | ≥ 95 % de flujos completados sin error 5xx ni pérdida de hold. |
+| **Viajero** | Recibir correo y QR de confirmación tras el pago. | 100 % de reservas confirmadas generan QR; ≥ 95 % de correos entregados sin rebote. |
+| **Administrador** | Mantener el inventario disponible libre de bloqueos fantasma. | 0 % de habitaciones con hold activo más de 11 minutos sin pago registrado (drift < 60 s). |
+| **Administrador** | Disponer de visibilidad operativa centralizada al iniciar sesión. | Dashboard carga en < 500 ms con el dataset del MVP (≥ 10 habitaciones, ≥ 50 reservas de prueba). |
+| **Administrador** | Verificar la identidad del huésped en check-in físico con QR o código. | 100 % de reservas confirmadas tienen código y QR verificable desde el panel. |
+| **Negocio** | Eliminar el riesgo de doble reserva (overbooking). | 0 reservas duplicadas en pruebas de carga con 20 usuarios simultáneos intentando el mismo hold. |
+| **Negocio** | Recuperar inventario bloqueado sin intervención manual. | ≥ 99 % de holds expirados liberados dentro de 60 s de su `expires_at`. |
 
 ### 3.2 Roles & permissions
 
-- **Viajero (sin login)**: acceso público a búsqueda, selección, check-out, pago simulado y confirmación.
-- **Administrador del hotel (sin login en MVP)**: necesidades cubiertas indirectamente por la lógica automática de expiración; no hay UI ni endpoints protegidos de administración.
+- **Viajero (sin login)**: acceso público a búsqueda (con filtros), selección, check-out, pago simulado y confirmación con QR y correo.
+- **Administrador del hotel (con login)**: acceso autenticado al panel de administración. Permisos: ver dashboard, gestionar clientes (crear/leer/actualizar/eliminar), gestionar habitaciones (crear/leer/actualizar/eliminar), ver y gestionar reservas (incluida terminación manual), verificar reservas por código o QR.
 
 ## 4. Requerimientos funcionales
 
@@ -79,16 +97,84 @@ No se incluye autenticación ni administración avanzada; los datos iniciales (h
   - La UI debe sincronizar su estado con el backend (no confiar solo en el reloj del cliente).
 
 - **Seeder de datos** (Priority: P1)
-  - Carga inicial de hotel(es), habitaciones (por ID único) y tarifas básicas para permitir pruebas end-to-end.
+  - Carga inicial de hotel(es), habitaciones (por ID único, con ciudad, país e imagen) y tarifas básicas para permitir pruebas end-to-end.
+  - Incluir usuario administrador de prueba en el seeder.
   - La creación de datos de prueba no requiere UI.
+
+- **Autenticación de administrador** (Priority: P0)
+  - El administrador accede al panel mediante credenciales (email + contraseña).
+  - El sistema debe emitir un token JWT firmado con expiración configurable.
+  - Todos los endpoints de administración deben estar protegidos por guard de autenticación.
+  - No se expone endpoint de registro de administradores (el administrador se crea vía seeder o script CLI).
+  - El token debe invalidarse correctamente en logout.
+
+- **Dashboard de administrador** (Priority: P1)
+  - Al ingresar, el administrador ve un panel con las siguientes métricas:
+    - Top 5 habitaciones más reservadas (nombre, número de reservas confirmadas).
+    - Total de ventas realizadas (suma de pagos confirmados, en la moneda base del sistema).
+    - Top 5 clientes frecuentes (nombre, número de reservas confirmadas).
+  - Los datos deben ser calculados en tiempo real o con caché de corta duración (< 1 minuto).
+
+- **CRUD de clientes (admin)** (Priority: P1)
+  - El administrador puede crear, leer, actualizar y eliminar registros de clientes.
+  - Campos mínimos del cliente: nombre completo, email, teléfono, documento de identidad.
+  - El email debe ser único por cliente.
+  - Eliminar un cliente con reservas activas debe estar bloqueado o requerir confirmación explícita.
+
+- **CRUD de habitaciones (admin)** (Priority: P0)
+  - El administrador puede crear, leer, actualizar y eliminar habitaciones.
+  - Campos ampliados de habitación: nombre/número, tipo, precio por noche, ciudad, país, URL de imagen, descripción, capacidad.
+  - La URL de imagen se usa para renderizar una imagen en el listado público de habitaciones.
+  - Eliminar una habitación con reservas activas o holds vigentes debe estar bloqueado.
+
+- **Módulo de reservas (admin)** (Priority: P1)
+  - El administrador puede ver todas las reservas con filtros por estado, fechas y cliente.
+  - El administrador puede dar por terminada manualmente una reserva confirmada: al hacerlo, la reserva pasa a estado `CHECKED_OUT` y la habitación queda disponible.
+  - La acción de terminación debe ser irreversible y registrar el `terminated_by` (ID del admin) y `terminated_at` (timestamp).
+
+- **Verificación de reserva (admin)** (Priority: P1)
+  - El administrador puede ingresar un código de reserva manualmente y ver el detalle de la reserva asociada.
+  - El administrador puede escanear el QR de la reserva y obtener el mismo resultado.
+  - La verificación debe mostrar: código, estado, habitación, cliente, fechas, monto pagado.
+
+- **Filtros de búsqueda para invitado** (Priority: P1)
+  - El viajero puede filtrar el listado de habitaciones por:
+    - Ciudad.
+    - País.
+    - Presupuesto máximo por noche.
+  - Los filtros son acumulables (AND lógico).
+  - El listado solo muestra habitaciones disponibles para el rango de fechas seleccionado y que cumplan todos los filtros activos.
+
+- **Código QR en confirmación** (Priority: P1)
+  - Al completar el pago exitosamente, la pantalla de confirmación muestra:
+    - El código alfanumérico de reserva.
+    - Un QR generado en el cliente (o servido por el backend) que codifica el código de reserva.
+  - El QR debe ser descargable o imprimible desde la pantalla de confirmación.
+
+- **Correo de confirmación** (Priority: P1)
+  - Tras pago exitoso, el sistema envía un correo electrónico al email proporcionado por el viajero durante el check-out.
+  - El correo debe incluir: código de reserva, QR (imagen embebida o adjunta), habitación, fechas, monto total.
+  - El envío de correo debe ser asíncrono (no bloquea la respuesta del pago).
+  - En el MVP se permite un proveedor SMTP simulado o de desarrollo (p. ej. Mailtrap o Nodemailer con transporte de prueba).
 
 ## 5. Experiencia de usuario
 
-### 5.1 Flujo principal
+### 5.1 Flujo principal — Viajero
 
-- Landing simple con buscador (fechas + ciudad/hotel opcional) y listado de habitaciones disponibles.
-- Selección de una habitación específica inicia el hold y redirige a check-out.
-- Check-out muestra datos mínimos, contador y botón “Pagar (simulado)”.
+- Landing con buscador (fechas + filtros: ciudad, país, presupuesto máximo) y listado de habitaciones disponibles con imágenes.
+- Selección de una habitación específica inicia el hold y redirige al check-out.
+- Check-out muestra datos mínimos, contador y botón "Pagar (simulado)".
+- Confirmación muestra código de reserva + QR descargable y dispara envío de correo.
+
+### 5.1b Flujo principal — Administrador
+
+- Login con email y contraseña; redirige al dashboard al autenticarse.
+- Dashboard muestra top 5 habitaciones, total de ventas y top 5 clientes frecuentes.
+- Navegación lateral a: Clientes, Habitaciones, Reservas, Verificar Reserva.
+- En Clientes: tabla con búsqueda, botones crear/editar/eliminar.
+- En Habitaciones: tabla con búsqueda, botones crear/editar/eliminar; formulario incluye ciudad, país y URL de imagen.
+- En Reservas: tabla con filtros; botón "Dar por terminada" en reservas confirmadas activas.
+- En Verificar Reserva: campo de código manual o lector de QR (cámara o upload de imagen).
 
 ### 5.2 Nucleo de la experiencia
 
@@ -100,7 +186,7 @@ No se incluye autenticación ni administración avanzada; los datos iniciales (h
   - Asegura claridad del estado temporal del inventario.
 - **Pagar (mock)**: el usuario confirma y el backend procesa pago idempotente.
   - Evita cobro/reserva duplicada por reintentos.
-- **Confirmación**: se muestra el estado final (confirmado) con código de reserva.
+- **Confirmación**: se muestra el estado final (confirmado) con código de reserva y QR; se dispara el envío de correo de confirmación al email del viajero.
   - Asegura cierre de transacción de negocio.
 
 ### 5.3 Funcionalidades críticas
@@ -111,12 +197,19 @@ No se incluye autenticación ni administración avanzada; los datos iniciales (h
 - Reintento de pago por timeout de red: se debe aplicar idempotencia.
 - Pago fallido: el hold se libera inmediatamente.
 - Worker cae temporalmente: los holds expirados deben liberarse al reanudarse el worker (eventual consistency acotada).
+- Administrador intenta terminar una reserva ya terminada o cancelada: el sistema debe rechazar la acción.
+- Token de administrador expirado: el sistema redirige al login sin exponer información sensible.
+- Correo de confirmación falla: el pago y la reserva quedan confirmados; el correo se reintenta de forma asíncrona sin afectar al usuario.
 
-### 5.4 UI/UX 
+### 5.4 UI/UX
 
-- “Transparencia de disponibilidad”: el listado refleja inventario real.
+- "Transparencia de disponibilidad": el listado refleja inventario real.
+- Listado de habitaciones muestra imagen (desde `image_url`), ciudad, país y precio por noche.
+- Filtros de ciudad, país y presupuesto visibles en el buscador público.
 - Timer visible con tiempo restante del hold.
-- Mensajes claros en “No disponible”, “Hold expirado” y “Pago fallido”.
+- Mensajes claros en "No disponible", "Hold expirado" y "Pago fallido".
+- Pantalla de confirmación muestra QR descargable/imprimible y mensaje de que se envió un correo.
+- Panel de administración con navegación lateral clara y feedback visual en acciones destructivas (confirmación antes de eliminar).
 
 ### 5.5 Flujo de Reserva de Hotel (Usuario Viajero)
 
@@ -154,7 +247,7 @@ flowchart TD
 
 ## 6. Narrativa
 
-El viajero busca fechas y elige una habitación específica. Al seleccionarla, el sistema la bloquea durante 10 minutos para que el viajero pueda completar el check-out con seguridad. Si el pago simulado se confirma dentro del tiempo, la reserva queda confirmada; si no, el sistema libera la habitación automáticamente para que otros usuarios puedan reservarla, manteniendo el inventario siempre vendible.
+El viajero busca fechas con filtros de ciudad, país y presupuesto, elige una habitación específica con imagen visible, y al seleccionarla el sistema la bloquea durante 10 minutos. Si el pago simulado se confirma dentro del tiempo, la reserva queda confirmada; el viajero recibe su código de reserva con QR en pantalla y por correo electrónico. El administrador, autenticado en su panel, dispone de métricas operativas en tiempo real, gestiona clientes y habitaciones, y puede verificar reservas ingresando el código o escaneando el QR. Si el pago no se completa, el sistema libera la habitación automáticamente manteniendo el inventario siempre vendible.
 
 ---
 
@@ -172,34 +265,48 @@ El viajero busca fechas y elige una habitación específica. Al seleccionarla, e
 
 ### 7.2 Riesgos de Negocio
 
-| Riesgo | Impacto | Estrategia de Mitigación |
-| :--- | :--- | :--- |
-| Usuarios o bots bloquean todas las habitaciones sin intención de pagar. | Crítico | Implementar **Rate Limiting** por IP en el endpoint de creación de bloqueos (`POST /holds`). Limitar a un máximo de 3 bloqueos activos por sesión de usuario no identificado. |
-| El timer de 10 minutos genera ansiedad y el usuario abandona la compra. | Medio | UX optimizada: Mostrar el contador de forma informativa pero no intrusiva. Proporcionar mensajes claros de que su lugar está asegurado para reducir la presión. |
-| El usuario cierra la pestaña y la habitación queda bloqueada 10 min innecesariamente. | Bajo | Implementar un evento `onBeforeUnload` en el navegador que intente enviar una petición de "liberación voluntaria" (`DELETE /holds/id`) si el usuario abandona el flujo antes de pagar. |
+| # | Riesgo | Probabilidad | Impacto | Exposición (P×I) | Estrategia de Mitigación |
+| :--- | :--- | :---: | :---: | :---: | :--- |
+| RN-01 | Usuarios o bots bloquean todas las habitaciones sin intención de pagar (inventory squatting). | Alta | Crítico | **Alta** | Rate Limiting por IP en `POST /holds` (máx. 2 holds activos por sesión). Tiempo de hold máximo de 10 min libera inventario automáticamente. |
+| RN-02 | El timer de 10 minutos genera ansiedad y el usuario abandona la compra (checkout abandonment). | Media | Alto | **Media** | Contador informativo no intrusivo. Mensajes de re-aseguramiento visibles. Prueba A/B de copy en MVP si el abandono supera el 40 %. |
+| RN-03 | El usuario cierra la pestaña y la habitación queda bloqueada 10 min innecesariamente (stale hold). | Alta | Medio | **Media** | Evento `onBeforeUnload` dispara `DELETE /holds/:id`. El worker libera holds expirados como fallback. |
+| RN-04 | Credenciales de administrador comprometidas dan acceso total al panel (account takeover). | Baja | Crítico | **Media** | JWT con expiración de 8 h, HTTPS obligatorio, rate limiting en `/auth/login` (máx. 5 intentos / 15 min / IP). Sin endpoint de registro público. |
+| RN-05 | Correos de confirmación van a spam o fallan silenciosamente (delivery failure). | Media | Medio | **Baja-Media** | Proveedor SMTP con SPF/DKIM en producción. Reintentos asíncronos (hasta 3). Log de fallos. El flujo de reserva no se bloquea si el correo falla. |
+| RN-06 | Administrador da por terminada manualmente una reserva activa por error (accidental checkout). | Baja | Medio | **Baja** | Modal de confirmación obligatorio antes de ejecutar. Registro de `terminated_by` y `terminated_at` para auditoría. Acción irreversible solo tras confirmar. |
 
 ---
 
-## 8. Metricas de éxito
+## 8. Métricas de Éxito del MVP
 
-### 8.1 Metricas de usuario
+### 8.1 Métricas de negocio (cuantificables)
 
-- Tasa de éxito de creación de hold (selección) sin errores.
-- Tiempo medio desde selección hasta confirmación.
-- Porcentaje de holds que expiran (indicador de fricción del check-out).
+| Métrica | Definición | Umbral de éxito MVP | Cómo medirlo |
+| :--- | :--- | :---: | :--- |
+| **Tasa de doble-booking** | Reservas confirmadas duplicadas para la misma habitación y rango de fechas. | **0 casos** en pruebas de carga con 20 usuarios simultáneos. | Test de carga con k6 / Locust; consulta SQL de duplicados post-test. |
+| **Tasa de conversión hold→reserva** | Reservas confirmadas / holds creados (excluye holds expirados por inactividad). | **≥ 60 %** en condiciones normales de prueba. | Query: `COUNT(reservations WHERE status=CONFIRMED) / COUNT(holds)`. |
+| **Recuperación de inventario** | Holds expirados liberados automáticamente / total holds expirados. | **≥ 99 %** dentro de los 60 s posteriores a `expires_at`. | Monitoreo de worker: timestamp de liberación vs. `expires_at`. |
+| **Tasa de entrega de correos** | Correos de confirmación entregados sin rebote / total reservas confirmadas. | **≥ 95 %** en entorno de prueba (Mailtrap). | Log del servicio de mail; conteo de eventos `delivered` vs. `bounced`. |
+| **Cobertura QR verificable** | Reservas confirmadas con QR escaneable y coincidente en panel admin / total reservas confirmadas. | **100 %** | Test E2E: generar reserva → escanear QR → verificar código en admin. |
+| **Disponibilidad de inventario admin** | Habitaciones con hold activo > 11 min sin pago registrado / total habitaciones del hotel. | **0 %** (drift < 60 s garantizado por worker). | Consulta periódica: `holds WHERE expires_at < NOW() AND status = ACTIVE`. |
 
-### 8.2 Metricas de negocio
+### 8.2 Métricas de usuario
 
-- Overbooking: 0 reservas confirmadas duplicadas por habitación/rango.
-- Conversión: confirmaciones / holds creados.
-- Recuperación de inventario: holds expirados liberados / total holds expirados.
+| Métrica | Definición | Umbral de éxito MVP |
+| :--- | :--- | :---: |
+| **Tasa de éxito del flujo completo** | Flujos búsqueda → confirmación completados sin error 5xx ni pérdida de hold. | **≥ 95 %** |
+| **Tiempo medio de conversión** | Tiempo promedio entre creación del hold y confirmación del pago. | **< 8 minutos** (dentro del hold de 10 min). |
+| **Abandono en check-out** | Holds creados que expiran sin completar pago / total holds creados. | **< 40 %** |
 
-### 8.3 Metricas técnicas
+### 8.3 Métricas técnicas
 
-- p95 de `GET /availability` (objetivo inicial: < 300 ms con dataset pequeño de MVP).
-- p95 de `POST /holds` y `POST /payments` (objetivo inicial: < 500 ms).
-- Tasa de conflictos de concurrencia (intentos de hold fallidos por colisión).
-- Drift de expiración: tiempo máximo entre `expires_at` y liberación efectiva (objetivo inicial: < 60 s).
+| Métrica | Umbral MVP |
+| :--- | :---: |
+| p95 `GET /availability` | < 300 ms |
+| p95 `POST /holds` | < 500 ms |
+| p95 `POST /payments` | < 500 ms |
+| p95 `GET /admin/dashboard` | < 500 ms |
+| Tasa de conflictos de concurrencia (holds fallidos por colisión) | < 5 % bajo 20 usuarios simultáneos |
+| Drift de expiración (`expires_at` → liberación efectiva) | < 60 s |
 
 ## 9. Arquitectura de datos
 
@@ -214,8 +321,10 @@ El viajero busca fechas y elige una habitación específica. Al seleccionarla, e
 
 - Entidades mínimas sugeridas:
   - `Hotel`
-  - `Room`
+  - `Room` — incluye campos: `city`, `country`, `image_url`
   - `Hold`
-  - `Reservation`
+  - `Reservation` — incluye campos: `terminated_by` (admin ID), `terminated_at`
   - `Payment`
+  - `Client` — incluye: nombre completo, email (único), teléfono, documento de identidad
+  - `Admin` — incluye: email, `password_hash`, rol
 
