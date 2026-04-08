@@ -43,6 +43,18 @@ El sistema incluye un módulo de administración con autenticación protegida, d
 - **Viajero (huésped)**: busca una habitación disponible usando filtros de ciudad, país y presupuesto; la bloquea durante el check-out; completa el pago dentro de un límite de tiempo; recibe confirmación con código de reserva, QR y correo electrónico.
 - **Administrador del hotel**: gestiona el sistema a través de un panel protegido con credenciales. Tiene acceso a dashboard de métricas, CRUD de clientes, CRUD de habitaciones, módulo de reservas y verificación de reservas por código/QR.
 
+### 3.3 Objetivos de negocio por actor
+
+| Actor | Objetivo cuantificable | Umbral de éxito MVP |
+| :--- | :--- | :--- |
+| **Viajero** | Completar una reserva desde búsqueda hasta confirmación sin errores del sistema. | ≥ 95 % de flujos completados sin error 5xx ni pérdida de hold. |
+| **Viajero** | Recibir correo y QR de confirmación tras el pago. | 100 % de reservas confirmadas generan QR; ≥ 95 % de correos entregados sin rebote. |
+| **Administrador** | Mantener el inventario disponible libre de bloqueos fantasma. | 0 % de habitaciones con hold activo más de 11 minutos sin pago registrado (drift < 60 s). |
+| **Administrador** | Disponer de visibilidad operativa centralizada al iniciar sesión. | Dashboard carga en < 500 ms con el dataset del MVP (≥ 10 habitaciones, ≥ 50 reservas de prueba). |
+| **Administrador** | Verificar la identidad del huésped en check-in físico con QR o código. | 100 % de reservas confirmadas tienen código y QR verificable desde el panel. |
+| **Negocio** | Eliminar el riesgo de doble reserva (overbooking). | 0 reservas duplicadas en pruebas de carga con 20 usuarios simultáneos intentando el mismo hold. |
+| **Negocio** | Recuperar inventario bloqueado sin intervención manual. | ≥ 99 % de holds expirados liberados dentro de 60 s de su `expires_at`. |
+
 ### 3.2 Roles & permissions
 
 - **Viajero (sin login)**: acceso público a búsqueda (con filtros), selección, check-out, pago simulado y confirmación con QR y correo.
@@ -253,39 +265,48 @@ El viajero busca fechas con filtros de ciudad, país y presupuesto, elige una ha
 
 ### 7.2 Riesgos de Negocio
 
-| Riesgo | Impacto | Estrategia de Mitigación |
-| :--- | :--- | :--- |
-| Usuarios o bots bloquean todas las habitaciones sin intención de pagar. | Crítico | Implementar **Rate Limiting** por IP en el endpoint de creación de bloqueos (`POST /holds`). Limitar a un máximo de 3 bloqueos activos por sesión de usuario no identificado. |
-| El timer de 10 minutos genera ansiedad y el usuario abandona la compra. | Medio | UX optimizada: Mostrar el contador de forma informativa pero no intrusiva. Proporcionar mensajes claros de que su lugar está asegurado para reducir la presión. |
-| El usuario cierra la pestaña y la habitación queda bloqueada 10 min innecesariamente. | Bajo | Implementar un evento `onBeforeUnload` en el navegador que intente enviar una petición de "liberación voluntaria" (`DELETE /holds/id`) si el usuario abandona el flujo antes de pagar. |
-| Credenciales de administrador comprometidas dan acceso total al panel. | Alto | JWT con expiración corta (p. ej. 8 h), HTTPS obligatorio, proteger endpoint de login con rate limiting. No exponer endpoint de creación de admins en producción. |
-| Correos de confirmación llegan a spam o fallan silenciosamente. | Medio | Usar proveedor SMTP con SPF/DKIM configurado en producción. En MVP, loggear fallos y reintentar hasta 3 veces de forma asíncrona. |
-| Administrador termina manualmente una reserva activa por error. | Medio | Mostrar confirmación modal antes de ejecutar la acción. Registrar `terminated_by` y `terminated_at` para auditoría. |
+| # | Riesgo | Probabilidad | Impacto | Exposición (P×I) | Estrategia de Mitigación |
+| :--- | :--- | :---: | :---: | :---: | :--- |
+| RN-01 | Usuarios o bots bloquean todas las habitaciones sin intención de pagar (inventory squatting). | Alta | Crítico | **Alta** | Rate Limiting por IP en `POST /holds` (máx. 2 holds activos por sesión). Tiempo de hold máximo de 10 min libera inventario automáticamente. |
+| RN-02 | El timer de 10 minutos genera ansiedad y el usuario abandona la compra (checkout abandonment). | Media | Alto | **Media** | Contador informativo no intrusivo. Mensajes de re-aseguramiento visibles. Prueba A/B de copy en MVP si el abandono supera el 40 %. |
+| RN-03 | El usuario cierra la pestaña y la habitación queda bloqueada 10 min innecesariamente (stale hold). | Alta | Medio | **Media** | Evento `onBeforeUnload` dispara `DELETE /holds/:id`. El worker libera holds expirados como fallback. |
+| RN-04 | Credenciales de administrador comprometidas dan acceso total al panel (account takeover). | Baja | Crítico | **Media** | JWT con expiración de 8 h, HTTPS obligatorio, rate limiting en `/auth/login` (máx. 5 intentos / 15 min / IP). Sin endpoint de registro público. |
+| RN-05 | Correos de confirmación van a spam o fallan silenciosamente (delivery failure). | Media | Medio | **Baja-Media** | Proveedor SMTP con SPF/DKIM en producción. Reintentos asíncronos (hasta 3). Log de fallos. El flujo de reserva no se bloquea si el correo falla. |
+| RN-06 | Administrador da por terminada manualmente una reserva activa por error (accidental checkout). | Baja | Medio | **Baja** | Modal de confirmación obligatorio antes de ejecutar. Registro de `terminated_by` y `terminated_at` para auditoría. Acción irreversible solo tras confirmar. |
 
 ---
 
-## 8. Metricas de éxito
+## 8. Métricas de Éxito del MVP
 
-### 8.1 Metricas de usuario
+### 8.1 Métricas de negocio (cuantificables)
 
-- Tasa de éxito de creación de hold (selección) sin errores.
-- Tiempo medio desde selección hasta confirmación.
-- Porcentaje de holds que expiran (indicador de fricción del check-out).
+| Métrica | Definición | Umbral de éxito MVP | Cómo medirlo |
+| :--- | :--- | :---: | :--- |
+| **Tasa de doble-booking** | Reservas confirmadas duplicadas para la misma habitación y rango de fechas. | **0 casos** en pruebas de carga con 20 usuarios simultáneos. | Test de carga con k6 / Locust; consulta SQL de duplicados post-test. |
+| **Tasa de conversión hold→reserva** | Reservas confirmadas / holds creados (excluye holds expirados por inactividad). | **≥ 60 %** en condiciones normales de prueba. | Query: `COUNT(reservations WHERE status=CONFIRMED) / COUNT(holds)`. |
+| **Recuperación de inventario** | Holds expirados liberados automáticamente / total holds expirados. | **≥ 99 %** dentro de los 60 s posteriores a `expires_at`. | Monitoreo de worker: timestamp de liberación vs. `expires_at`. |
+| **Tasa de entrega de correos** | Correos de confirmación entregados sin rebote / total reservas confirmadas. | **≥ 95 %** en entorno de prueba (Mailtrap). | Log del servicio de mail; conteo de eventos `delivered` vs. `bounced`. |
+| **Cobertura QR verificable** | Reservas confirmadas con QR escaneable y coincidente en panel admin / total reservas confirmadas. | **100 %** | Test E2E: generar reserva → escanear QR → verificar código en admin. |
+| **Disponibilidad de inventario admin** | Habitaciones con hold activo > 11 min sin pago registrado / total habitaciones del hotel. | **0 %** (drift < 60 s garantizado por worker). | Consulta periódica: `holds WHERE expires_at < NOW() AND status = ACTIVE`. |
 
-### 8.2 Metricas de negocio
+### 8.2 Métricas de usuario
 
-- Overbooking: 0 reservas confirmadas duplicadas por habitación/rango.
-- Conversión: confirmaciones / holds creados.
-- Recuperación de inventario: holds expirados liberados / total holds expirados.
+| Métrica | Definición | Umbral de éxito MVP |
+| :--- | :--- | :---: |
+| **Tasa de éxito del flujo completo** | Flujos búsqueda → confirmación completados sin error 5xx ni pérdida de hold. | **≥ 95 %** |
+| **Tiempo medio de conversión** | Tiempo promedio entre creación del hold y confirmación del pago. | **< 8 minutos** (dentro del hold de 10 min). |
+| **Abandono en check-out** | Holds creados que expiran sin completar pago / total holds creados. | **< 40 %** |
 
-### 8.3 Metricas técnicas
+### 8.3 Métricas técnicas
 
-- p95 de `GET /availability` (objetivo inicial: < 300 ms con dataset pequeño de MVP).
-- p95 de `POST /holds` y `POST /payments` (objetivo inicial: < 500 ms).
-- p95 de `GET /admin/dashboard` (objetivo inicial: < 500 ms).
-- Tasa de conflictos de concurrencia (intentos de hold fallidos por colisión).
-- Drift de expiración: tiempo máximo entre `expires_at` y liberación efectiva (objetivo inicial: < 60 s).
-- Tasa de entrega exitosa de correos de confirmación (objetivo inicial: > 95%).
+| Métrica | Umbral MVP |
+| :--- | :---: |
+| p95 `GET /availability` | < 300 ms |
+| p95 `POST /holds` | < 500 ms |
+| p95 `POST /payments` | < 500 ms |
+| p95 `GET /admin/dashboard` | < 500 ms |
+| Tasa de conflictos de concurrencia (holds fallidos por colisión) | < 5 % bajo 20 usuarios simultáneos |
+| Drift de expiración (`expires_at` → liberación efectiva) | < 60 s |
 
 ## 9. Arquitectura de datos
 
