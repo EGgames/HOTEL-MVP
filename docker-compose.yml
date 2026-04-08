@@ -33,14 +33,21 @@ services:
       DB_NAME: ${DB_NAME:-hotel_booking}
       HOLD_DURATION_MINUTES: 10
       PAYMENT_SIMULATOR_DECLINE_RATE: 0.2
+      JWT_SECRET: ${JWT_SECRET:-hotel-admin-secret-dev}
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
+      SMTP_FROM: '"Hotel Booking" <noreply@hotel.com>'
     ports:
       - '3000:3000'
     depends_on:
       postgres:
         condition: service_healthy
+      mailhog:
+        condition: service_started
     volumes:
       - ./backend:/app
       - /app/node_modules
+      - /app/dist
 
   frontend:
     build:
@@ -56,6 +63,13 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: hotel_mailhog
+    ports:
+      - '1025:1025'
+      - '8025:8025'
 
 volumes:
   postgres_data:

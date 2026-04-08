@@ -42,7 +42,11 @@ describe('SearchBar', () => {
     fireEvent.change(screen.getByLabelText(/salida/i), { target: { value: '2026-05-12' } });
     fireEvent.click(screen.getByRole('button', { name: /buscar/i }));
 
-    expect(onSearch).toHaveBeenCalledWith('2026-05-10', '2026-05-12');
+    expect(onSearch).toHaveBeenCalledWith('2026-05-10', '2026-05-12', {
+      city: undefined,
+      minPrice: undefined,
+      maxPrice: undefined,
+    });
   });
 
   it('does not call onSearch when validation fails', () => {

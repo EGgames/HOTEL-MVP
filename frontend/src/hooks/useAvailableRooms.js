@@ -6,11 +6,11 @@ export function useAvailableRooms() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const search = useCallback(async (checkin, checkout, hotelId) => {
+  const search = useCallback(async (checkin, checkout, hotelId, filters = {}) => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await getAvailableRooms(checkin, checkout, hotelId);
+      const data = await getAvailableRooms(checkin, checkout, hotelId, filters);
       setRooms(data);
     } catch (err) {
       const message = err.response?.data?.detail ?? 'Error al buscar habitaciones';

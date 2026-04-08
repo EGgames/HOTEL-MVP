@@ -5,12 +5,14 @@ import { RoomsService } from './rooms.service';
 import { Room } from './entities/room.entity';
 import { Hold, HoldStatus } from '../holds/entities/hold.entity';
 import { Reservation } from '../reservations/entities/reservation.entity';
+import { Hotel } from '../hotels/entities/hotel.entity';
 
 describe('RoomsService', () => {
   let service: RoomsService;
 
   const buildQb = (overrides: Record<string, unknown> = {}) => ({
     select: jest.fn().mockReturnThis(),
+    leftJoinAndSelect: jest.fn().mockReturnThis(),
     where: jest.fn().mockReturnThis(),
     andWhere: jest.fn().mockReturnThis(),
     orderBy: jest.fn().mockReturnThis(),
@@ -28,6 +30,7 @@ describe('RoomsService', () => {
   const mockRoomRepository = { createQueryBuilder: jest.fn() };
   const mockHoldRepository = { createQueryBuilder: jest.fn() };
   const mockReservationRepository = { createQueryBuilder: jest.fn() };
+  const mockHotelRepository = {};
 
   let mockManager: {
     createQueryBuilder: jest.Mock;
@@ -46,6 +49,7 @@ describe('RoomsService', () => {
         { provide: getRepositoryToken(Room), useValue: mockRoomRepository },
         { provide: getRepositoryToken(Hold), useValue: mockHoldRepository },
         { provide: getRepositoryToken(Reservation), useValue: mockReservationRepository },
+        { provide: getRepositoryToken(Hotel), useValue: mockHotelRepository },
         { provide: getDataSourceToken(), useValue: mockDataSource },
       ],
     }).compile();

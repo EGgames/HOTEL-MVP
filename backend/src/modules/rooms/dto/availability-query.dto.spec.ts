@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import { validate, ValidationArguments } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 import { AvailabilityQueryDto, IsAfterCheckin, IsNotInPast } from './availability-query.dto';

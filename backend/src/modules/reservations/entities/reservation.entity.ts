@@ -25,11 +25,11 @@ export class Reservation {
   @Column({ type: 'uuid', name: 'room_id' })
   room_id: string;
 
-  @Column({ type: 'uuid', name: 'hold_id' })
-  hold_id: string;
+  @Column({ type: 'uuid', name: 'hold_id', nullable: true })
+  hold_id: string | null;
 
-  @Column({ type: 'uuid', name: 'payment_id' })
-  payment_id: string;
+  @Column({ type: 'uuid', name: 'payment_id', nullable: true })
+  payment_id: string | null;
 
   @Column({ type: 'date' })
   checkin: Date;
@@ -43,6 +43,12 @@ export class Reservation {
     default: ReservationStatus.CONFIRMED,
   })
   status: ReservationStatus;
+
+  @Column({ type: 'varchar', length: 100, nullable: true, name: 'customer_email' })
+  customer_email: string | null;
+
+  @Column({ type: 'varchar', length: 100, nullable: true, name: 'customer_name' })
+  customer_name: string | null;
 
   @CreateDateColumn({ type: 'timestamptz', name: 'created_at' })
   created_at: Date;
