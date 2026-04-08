@@ -1,9 +1,11 @@
 # 🏨 Backlog Final Consolidado: Travel Hotel
 
-### HU0: Configuración del Ecosistema de Datos
+### HU0: Gestión confiable de las reservas
 **Story Point**: 5
 
-**Como** equipo de ingeniería, **quiero** configurar un entorno de persistencia con transacciones ACID y CI/CD, **para** garantizar que el motor de reservas opere con consistencia y seguridad.
+**Como** administrador del sistema de reservas
+**Quiero** que el sistema gestione la información de habitaciones y reservas de forma consistente
+**Para** evitar que se produzcan conflictos cuando varios usuarios intentan reservar al mismo tiempo.
 
 * **Criterios de Aceptación (Gherkin):**
     ```gherkin
