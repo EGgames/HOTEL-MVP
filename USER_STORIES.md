@@ -7,10 +7,12 @@
 
 * **Criterios de Aceptación (Gherkin):**
     ```gherkin
-    Scenario: Soporte de transacciones y bloqueos
-      Given una base de datos PostgreSQL inicializada
-      When el sistema ejecuta una consulta con bloqueo de fila (SELECT FOR UPDATE)
-      Then la base de datos debe impedir que otra transacción modifique la misma fila hasta que la primera finalice
+      Scenario: Una habitación no puede ser reservada simultáneamente por dos usuarios
+        Given existe una habitación "#203" disponible para las fechas "2026-05-10" al "2026-05-11"
+        When el usuario "Carlos" inicia el proceso de reserva de la habitación "#203"
+        And otro usuario "Laura" intenta reservar la misma habitación en las mismas fechas
+        Then el sistema debe impedir la segunda reserva
+        And mostrar que la habitación ya no está disponible
     ```
 
 ### HU1: Seeder de Inventario Inicial
