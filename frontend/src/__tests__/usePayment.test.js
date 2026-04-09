@@ -20,7 +20,7 @@ describe('usePayment', () => {
       await result.current.pay('hold-1', 100);
     });
 
-    expect(processPayment).toHaveBeenCalledWith('hold-1', 100, 'mock-uuid');
+    expect(processPayment).toHaveBeenCalledWith('hold-1', 100, 'mock-uuid', {});
   });
 
   it('reuses the same idempotency key on repeated pay() calls', async () => {

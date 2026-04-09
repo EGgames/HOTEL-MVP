@@ -101,7 +101,10 @@ describe('CheckoutForm', () => {
     fireEvent.click(screen.getByRole('button', { name: /pagar/i }));
 
     // 2 nights × $100/night = $200
-    expect(onPaymentSubmit).toHaveBeenCalledWith(200);
+    expect(onPaymentSubmit).toHaveBeenCalledWith(200, {
+      customer_email: 'ana@test.com',
+      customer_name: 'Ana López',
+    });
   });
 
   it('displays paymentError when provided', () => {
