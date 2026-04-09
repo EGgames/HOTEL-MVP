@@ -80,6 +80,24 @@ jobs:
             });
             core.info('✅ Dispatch enviado a HOTEL_QA_TEST_BD');
 
+      - name: Dispatch → HOTEL_QA_TEST_SERENITY
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
+        with:
+          github-token: ${{ secrets.QA_DISPATCH_TOKEN }}
+          script: |
+            await github.rest.repos.createDispatchEvent({
+              owner: 'ItsgabrielJT',
+              repo:  'HOTEL_QA_TEST_SERENITY',
+              event_type: 'e2e-trigger',
+              client_payload: {
+                correlation_id: '${{ github.run_id }}',
+                source_sha:     '${{ github.sha }}',
+                source_branch:  '${{ github.ref_name }}',
+                source_run_url: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}',
+              },
+            });
+            core.info('✅ Dispatch enviado a HOTEL_QA_TEST_SERENITY');
+
   # ───────────────────────────────────────────────
   # Fase 2a — Esperar Karate QA (corre en paralelo con wait-db-qa)
   # ───────────────────────────────────────────────
