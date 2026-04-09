@@ -1,7 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { AdminRoomsPage } from '../pages/AdminRoomsPage';
 import { useAdminRooms } from '../hooks/useAdminRooms';
-import { getHotels } from '../services/adminService';
 
 vi.mock('../hooks/useAdminRooms');
 vi.mock('../services/adminService', async (importOriginal) => {
