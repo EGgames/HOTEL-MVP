@@ -8,7 +8,7 @@ export function usePayment() {
   const [error, setError] = useState(null);
   const idempotencyKeyRef = useRef(null);
 
-  const pay = useCallback(async (holdId, amount) => {
+  const pay = useCallback(async (holdId, amount, customerInfo = {}) => {
     if (!idempotencyKeyRef.current) {
       idempotencyKeyRef.current = uuidv4();
     }
@@ -17,7 +17,7 @@ export function usePayment() {
     setError(null);
 
     try {
-      const data = await processPayment(holdId, amount, idempotencyKeyRef.current);
+      const data = await processPayment(holdId, amount, idempotencyKeyRef.current, customerInfo);
       setPayment(data);
       return { success: true, data };
     } catch (err) {

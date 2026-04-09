@@ -67,7 +67,7 @@ export class RoomsService {
     }
 
     if (city) {
-      qb.andWhere('LOWER(hotel.city) = LOWER(:city)', { city });
+      qb.andWhere('LOWER(hotel.city) LIKE LOWER(:city)', { city: `%${city}%` });
     }
 
     if (min_price != null) {

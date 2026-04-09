@@ -23,8 +23,8 @@ export function CheckoutPage() {
     }
   }, [holdError, navigate]);
 
-  async function handlePaymentSubmit(amount) {
-    const result = await pay(holdId, amount);
+  async function handlePaymentSubmit(amount, customerInfo) {
+    const result = await pay(holdId, amount, customerInfo);
     if (result.success) {
       const updatedHold = await getHoldState(holdId);
       if (updatedHold.reservation_id) {

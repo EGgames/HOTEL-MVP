@@ -2,12 +2,16 @@ import { useEffect, useState } from 'react';
 import { useAdminRooms } from '../hooks/useAdminRooms';
 import { DataTable } from '../components/DataTable/DataTable';
 import { AdminFormModal } from '../components/AdminFormModal/AdminFormModal';
+import { getHotels } from '../services/adminService';
 import styles from './AdminRoomsPage.module.css';
 
 const TYPE_LABELS = { SINGLE: 'Individual', DOUBLE: 'Doble', SUITE: 'Suite' };
 
+const WING_OPTIONS = ['Norte', 'Sur', 'Este', 'Oeste', 'Central'];
+
 const COLUMNS = [
   { key: 'room_number', label: '#' },
+  { key: 'hotel_name', label: 'Hotel', render: (v) => v ?? '-' },
   { key: 'type', label: 'Tipo', render: (v) => TYPE_LABELS[v] ?? v },
   { key: 'price_per_night', label: 'Precio / noche', render: (v) => `$${parseFloat(v).toFixed(2)}` },
   { key: 'capacity', label: 'Capacidad' },
@@ -22,13 +26,17 @@ const EMPTY_FORM = {
 
 export function AdminRoomsPage({ token }) {
   const { rooms, isLoading, error, fetchRooms, addRoom, editRoom, removeRoom } = useAdminRooms(token);
+  const [hotels, setHotels] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
 
   useEffect(() => {
     fetchRooms();
-  }, [fetchRooms]);
+    if (token) {
+      getHotels(token).then(setHotels).catch(() => {});
+    }
+  }, [fetchRooms, token]);
 
   function openCreate() {
     setEditing(null);
@@ -125,8 +133,15 @@ export function AdminRoomsPage({ token }) {
           </label>
           {!editing && (
             <label className={styles.label}>
-              Hotel ID
-              <input name="hotel_id" className={styles.input} value={form.hotel_id} onChange={handleChange} required />
+              Hotel
+              <select name="hotel_id" className={styles.input} value={form.hotel_id} onChange={handleChange} required>
+                <option value="">-- Seleccionar hotel --</option>
+                {hotels.map((h) => (
+                  <option key={h.id} value={h.id}>
+                    {h.name} — {h.city}, {h.country}
+                  </option>
+                ))}
+              </select>
             </label>
           )}
           <label className={styles.label}>
@@ -155,7 +170,12 @@ export function AdminRoomsPage({ token }) {
           </label>
           <label className={styles.label}>
             Ala
-            <input name="wing" className={styles.input} value={form.wing} onChange={handleChange} />
+            <select name="wing" className={styles.input} value={form.wing} onChange={handleChange}>
+              <option value="">-- Sin ala --</option>
+              {WING_OPTIONS.map((w) => (
+                <option key={w} value={w}>{w}</option>
+              ))}
+            </select>
           </label>
           <label className={styles.label}>
             URL Imagen

@@ -14,6 +14,12 @@ export function RoomCard({ room, onSelect, isLoading }) {
         <span className={styles.number}>#{room.room_number}</span>
       </div>
 
+      {room.hotel && (
+        <div className={styles.location}>
+          📍 {room.hotel.city}{room.hotel.country ? `, ${room.hotel.country}` : ''}
+        </div>
+      )}
+
       <div className={styles.price}>
         <span className={styles.amount}>
           U${parseFloat(room.price_per_night).toFixed(2)}

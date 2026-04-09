@@ -18,6 +18,7 @@ import { AdminDashboardService } from './services/admin-dashboard.service';
 import { AdminReservationsService } from './services/admin-reservations.service';
 import { AdminCustomersService } from './services/admin-customers.service';
 import { AdminRoomsService } from './services/admin-rooms.service';
+import { AdminHotelsService } from './services/admin-hotels.service';
 import { MailService } from './services/mail.service';
 
 import { AdminAuthController } from './controllers/admin-auth.controller';
@@ -25,6 +26,7 @@ import { AdminDashboardController } from './controllers/admin-dashboard.controll
 import { AdminReservationsController } from './controllers/admin-reservations.controller';
 import { AdminCustomersController } from './controllers/admin-customers.controller';
 import { AdminRoomsController } from './controllers/admin-rooms.controller';
+import { AdminHotelsController } from './controllers/admin-hotels.controller';
 
 @Module({
   imports: [
@@ -55,6 +57,7 @@ import { AdminRoomsController } from './controllers/admin-rooms.controller';
     AdminReservationsController,
     AdminCustomersController,
     AdminRoomsController,
+    AdminHotelsController,
   ],
   providers: [
     AdminAuthService,
@@ -63,6 +66,7 @@ import { AdminRoomsController } from './controllers/admin-rooms.controller';
     AdminReservationsService,
     AdminCustomersService,
     AdminRoomsService,
+    AdminHotelsService,
     MailService,
   ],
 })

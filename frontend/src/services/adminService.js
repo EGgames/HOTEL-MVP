@@ -101,3 +101,10 @@ export async function deleteRoom(id, token) {
     headers: { Authorization: `Bearer ${token}` },
   });
 }
+
+export async function getHotels(token) {
+  const res = await axios.get(`${API_BASE}/api/v1/admin/hotels`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.data;
+}

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import styles from './PaymentSummary.module.css';
 
 export function PaymentSummary({ reservation }) {
@@ -37,6 +38,15 @@ export function PaymentSummary({ reservation }) {
             {copied ? '¡Copiado!' : 'Copiar'}
           </button>
         </div>
+      </div>
+
+      <div className={styles.qrSection}>
+        <QRCodeSVG
+          value={`${window.location.origin}/confirmation/${reservation.reservation_code}`}
+          size={160}
+          level="M"
+        />
+        <span className={styles.qrLabel}>Escaneá el QR para ver tu reserva</span>
       </div>
 
       <div className={styles.details}>

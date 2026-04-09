@@ -9,6 +9,7 @@ import { Repository, DataSource } from 'typeorm';
 import { Reservation, ReservationStatus } from '../../reservations/entities/reservation.entity';
 import { Room } from '../../rooms/entities/room.entity';
 import { Hotel } from '../../hotels/entities/hotel.entity';
+import { Customer } from '../entities/customer.entity';
 import { CreateAdminReservationDto } from '../dto/create-admin-reservation.dto';
 import { generateReservationCode } from '../../../common/utils/reservation-code.util';
 import { MailService } from './mail.service';
@@ -24,6 +25,8 @@ export class AdminReservationsService {
     private readonly roomRepository: Repository<Room>,
     @InjectRepository(Hotel)
     private readonly hotelRepository: Repository<Hotel>,
+    @InjectRepository(Customer)
+    private readonly customerRepository: Repository<Customer>,
     @InjectDataSource()
     private readonly dataSource: DataSource,
     private readonly mailService: MailService,
@@ -109,6 +112,18 @@ export class AdminReservationsService {
       });
 
       const saved = await manager.save(Reservation, reservation);
+
+      // Auto-register customer if not exists
+      const existingCustomer = await manager.findOne(Customer, {
+        where: { email: dto.customer_email },
+      });
+      if (!existingCustomer) {
+        const customer = manager.create(Customer, {
+          email: dto.customer_email,
+          name: dto.customer_name,
+        });
+        await manager.save(Customer, customer);
+      }
 
       const hotel = await this.hotelRepository.findOne({ where: { id: room.hotel_id } });
       const checkin = new Date(dto.checkin);
