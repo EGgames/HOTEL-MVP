@@ -1,0 +1,61 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Gitleaks Configuration
+# Personaliza qué patrones escanear y qué excluir (falsos positivos).
+# Documentación: https://github.com/gitleaks/gitleaks#configuration
+# ─────────────────────────────────────────────────────────────────────────────
+
+title = "Hotel MVP — Gitleaks Config"
+
+[extend]
+# Extiende las reglas por defecto de Gitleaks (incluye +150 patrones)
+useDefault = true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Allowlist global: excluye archivos o paths que no deben escanearse
+# ─────────────────────────────────────────────────────────────────────────────
+[allowlist]
+  description = "Exclusiones globales para evitar falsos positivos"
+  paths = [
+    ".env\\.example",
+    ".env\\.template",
+    "node_modules",
+    "package-lock\\.json",
+    "dist",
+    "coverage",
+    "\\.spec\\.ts$",
+    "\\.spec\\.js$",
+    "\\.test\\.ts$",
+    "\\.test\\.js$",
+    "__tests__",
+  ]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Reglas adicionales específicas del proyecto
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Detecta claves de Stripe en código fuente
+[[rules]]
+  id          = "stripe-secret-key"
+  description = "Stripe Secret API Key"
+  regex       = '''sk_(live|test)_[0-9a-zA-Z]{24,}'''
+  tags        = ["payment", "stripe", "secret"]
+
+# Detecta claves de Stripe publicables (no son secretas pero se rastrean)
+[[rules]]
+  id          = "stripe-publishable-key"
+  description = "Stripe Publishable API Key"
+  regex       = '''pk_(live|test)_[0-9a-zA-Z]{24,}'''
+  tags        = ["payment", "stripe"]
+
+# Detecta connection strings de PostgreSQL con credenciales
+[[rules]]
+  id          = "postgres-connection-string"
+  description = "PostgreSQL Connection String with credentials"
+  regex       = '''postgresql://[^:]+:[^@]+@[^/]+/\w+'''
+  tags        = ["database", "postgres"]
+  [rules.allowlist]
+    # Excluir valores placeholder comunes en ejemplos
+    regexes = [
+      '''postgresql://user:password@localhost''',
+      '''postgresql://\$\{''',
+    ]

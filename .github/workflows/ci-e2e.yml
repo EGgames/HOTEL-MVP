@@ -1,0 +1,294 @@
+name: CI — E2E QA Report
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Dispara las suites E2E externas (Karate + DB QA) cuando hay push a dev,
+# espera los resultados en paralelo y publica un reporte consolidado en
+# https://github.com/ItsgabrielJT/QA_HOTEL_MVP
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    branches:
+      - dev
+
+concurrency:
+  group: ci-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  # ───────────────────────────────────────────────
+  # Fase 1 — Disparar ambas suites QA en paralelo
+  # ───────────────────────────────────────────────
+  dispatch-qa:
+    name: "[ E2E 1 ] Disparar suites QA"
+    runs-on: ubuntu-22.04
+    outputs:
+      dispatch-time: ${{ steps.meta.outputs.dispatch-time }}
+
+    steps:
+      - name: Registrar timestamp de dispatch
+        id: meta
+        run: echo "dispatch-time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      - name: Validar QA_DISPATCH_TOKEN
+        run: |
+          if [ -z "${{ secrets.QA_DISPATCH_TOKEN }}" ]; then
+            echo "::error::El secret QA_DISPATCH_TOKEN no está configurado en este repositorio."
+            echo "::error::Ve a Settings → Secrets → Actions y crea un PAT clásico con scope 'repo'."
+            exit 1
+          fi
+
+      - name: Dispatch → HOTEL_QA_TEST_KARATE
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
+        with:
+          github-token: ${{ secrets.QA_DISPATCH_TOKEN }}
+          script: |
+            await github.rest.repos.createDispatchEvent({
+              owner: 'ItsgabrielJT',
+              repo:  'HOTEL_QA_TEST_KARATE',
+              event_type: 'e2e-trigger',
+              client_payload: {
+                correlation_id: '${{ github.run_id }}',
+                source_sha:     '${{ github.sha }}',
+                source_branch:  '${{ github.ref_name }}',
+                source_run_url: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}',
+              },
+            });
+            core.info('✅ Dispatch enviado a HOTEL_QA_TEST_KARATE');
+
+      - name: Dispatch → HOTEL_QA_TEST_BD
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
+        with:
+          github-token: ${{ secrets.QA_DISPATCH_TOKEN }}
+          script: |
+            await github.rest.repos.createDispatchEvent({
+              owner: 'ItsgabrielJT',
+              repo:  'HOTEL_QA_TEST_BD',
+              event_type: 'e2e-trigger',
+              client_payload: {
+                correlation_id: '${{ github.run_id }}',
+                source_sha:     '${{ github.sha }}',
+                source_branch:  '${{ github.ref_name }}',
+                source_run_url: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}',
+              },
+            });
+            core.info('✅ Dispatch enviado a HOTEL_QA_TEST_BD');
+
+  # ───────────────────────────────────────────────
+  # Fase 2a — Esperar Karate QA (corre en paralelo con wait-db-qa)
+  # ───────────────────────────────────────────────
+  wait-karate:
+    name: "[ E2E 2a ] Esperar — Karate QA"
+    needs: dispatch-qa
+    runs-on: ubuntu-22.04
+    timeout-minutes: 50
+    outputs:
+      run-id:     ${{ steps.poll.outputs.run-id }}
+      conclusion: ${{ steps.poll.outputs.conclusion }}
+      run-url:    ${{ steps.poll.outputs.run-url }}
+
+    steps:
+      - name: Sondear workflow Karate hasta completitud
+        id: poll
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
+        timeout-minutes: 45
+        with:
+          github-token: ${{ secrets.QA_DISPATCH_TOKEN }}
+          script: |
+            const owner        = 'ItsgabrielJT';
+            const repo         = 'HOTEL_QA_TEST_KARATE';
+            const workflowFile = 'karate-qa.yml';
+            const cutoff       = new Date('${{ needs.dispatch-qa.outputs.dispatch-time }}');
+
+            // Hasta 6 min para que aparezca el run
+            let runId = null;
+            for (let i = 0; i < 36; i++) {
+              await new Promise(r => setTimeout(r, 10_000));
+              const { data } = await github.rest.actions.listWorkflowRuns({
+                owner, repo, workflow_id: workflowFile,
+                event: 'repository_dispatch', per_page: 10,
+              });
+              const found = data.workflow_runs.find(r => new Date(r.created_at) >= cutoff);
+              if (found) { runId = found.id; core.info(`Run Karate encontrado: ${runId}`); break; }
+            }
+
+            if (!runId) {
+              core.setFailed('No se detectó el run de Karate QA tras 6 minutos. Verifica que el token tenga acceso al repo.');
+              return;
+            }
+
+            // Hasta 40 min esperando completitud
+            let conclusion = 'timed_out';
+            let runUrl     = `https://github.com/${owner}/${repo}/actions/runs/${runId}`;
+            for (let i = 0; i < 240; i++) {
+              await new Promise(r => setTimeout(r, 10_000));
+              const { data: run } = await github.rest.actions.getWorkflowRun({ owner, repo, run_id: runId });
+              if (run.status === 'completed') {
+                conclusion = run.conclusion;
+                runUrl     = run.html_url;
+                core.info(`Karate QA completado: ${conclusion}`);
+                break;
+              }
+            }
+
+            core.setOutput('run-id',     String(runId));
+            core.setOutput('conclusion', conclusion);
+            core.setOutput('run-url',    runUrl);
+
+  # ───────────────────────────────────────────────
+  # Fase 2b — Esperar DB QA (corre en paralelo con wait-karate)
+  # ───────────────────────────────────────────────
+  wait-db-qa:
+    name: "[ E2E 2b ] Esperar — Database QA"
+    needs: dispatch-qa
+    runs-on: ubuntu-22.04
+    timeout-minutes: 50
+    outputs:
+      run-id:     ${{ steps.poll.outputs.run-id }}
+      conclusion: ${{ steps.poll.outputs.conclusion }}
+      run-url:    ${{ steps.poll.outputs.run-url }}
+
+    steps:
+      - name: Sondear workflow DB QA hasta completitud
+        id: poll
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
+        timeout-minutes: 45
+        with:
+          github-token: ${{ secrets.QA_DISPATCH_TOKEN }}
+          script: |
+            const owner        = 'ItsgabrielJT';
+            const repo         = 'HOTEL_QA_TEST_BD';
+            const workflowFile = 'db-qa.yml';
+            const cutoff       = new Date('${{ needs.dispatch-qa.outputs.dispatch-time }}');
+
+            // Hasta 6 min para que aparezca el run
+            let runId = null;
+            for (let i = 0; i < 36; i++) {
+              await new Promise(r => setTimeout(r, 10_000));
+              const { data } = await github.rest.actions.listWorkflowRuns({
+                owner, repo, workflow_id: workflowFile,
+                event: 'repository_dispatch', per_page: 10,
+              });
+              const found = data.workflow_runs.find(r => new Date(r.created_at) >= cutoff);
+              if (found) { runId = found.id; core.info(`Run DB QA encontrado: ${runId}`); break; }
+            }
+
+            if (!runId) {
+              core.setFailed('No se detectó el run de DB QA tras 6 minutos. Verifica que el token tenga acceso al repo.');
+              return;
+            }
+
+            // Hasta 40 min esperando completitud
+            let conclusion = 'timed_out';
+            let runUrl     = `https://github.com/${owner}/${repo}/actions/runs/${runId}`;
+            for (let i = 0; i < 240; i++) {
+              await new Promise(r => setTimeout(r, 10_000));
+              const { data: run } = await github.rest.actions.getWorkflowRun({ owner, repo, run_id: runId });
+              if (run.status === 'completed') {
+                conclusion = run.conclusion;
+                runUrl     = run.html_url;
+                core.info(`DB QA completado: ${conclusion}`);
+                break;
+              }
+            }
+
+            core.setOutput('run-id',     String(runId));
+            core.setOutput('conclusion', conclusion);
+            core.setOutput('run-url',    runUrl);
+
+  # ───────────────────────────────────────────────
+  # Fase 3 — Generar y publicar reporte consolidado
+  # ───────────────────────────────────────────────
+  publish-report:
+    name: "[ E2E 3 ] Publicar reporte consolidado"
+    needs: [dispatch-qa, wait-karate, wait-db-qa]
+    if: always()
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Generar reporte Markdown
+        env:
+          KARATE_CONCLUSION: ${{ needs.wait-karate.outputs.conclusion }}
+          KARATE_RUN_ID:     ${{ needs.wait-karate.outputs.run-id }}
+          KARATE_RUN_URL:    ${{ needs.wait-karate.outputs.run-url }}
+          DB_CONCLUSION:     ${{ needs.wait-db-qa.outputs.conclusion }}
+          DB_RUN_ID:         ${{ needs.wait-db-qa.outputs.run-id }}
+          DB_RUN_URL:        ${{ needs.wait-db-qa.outputs.run-url }}
+        run: |
+          mkdir -p report
+
+          badge() { [ "$1" = "success" ] && echo "✅ PASSED" || echo "❌ ${1:-unknown}"; }
+
+          overall="FAILED"
+          if [ "$KARATE_CONCLUSION" = "success" ] && [ "$DB_CONCLUSION" = "success" ]; then
+            overall="PASSED"
+          fi
+
+          SHORT_SHA="${{ github.sha }}"
+          SHORT_SHA="${SHORT_SHA:0:8}"
+
+          cat > report/E2E_REPORT.md <<MARKDOWN
+          # Reporte E2E QA — Hotel MVP
+
+          | Campo | Valor |
+          |---|---|
+          | **Fecha** | $(date -u +'%Y-%m-%d %H:%M:%S UTC') |
+          | **Branch** | \`${{ github.ref_name }}\` |
+          | **Commit** | \`${SHORT_SHA}\` |
+          | **Pipeline origen** | [Ver run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |
+          | **Estado global** | **${overall}** |
+
+          ---
+
+          ## Resultados por Suite
+
+          | Suite | Estado | Run |
+          |---|---|---|
+          | Karate E2E (API + ZAP) | $(badge "$KARATE_CONCLUSION") | [#${KARATE_RUN_ID}](${KARATE_RUN_URL}) |
+          | Database QA (pytest) | $(badge "$DB_CONCLUSION") | [#${DB_RUN_ID}](${DB_RUN_URL}) |
+
+          ---
+
+          ## Recursos
+
+          - [Reporte Karate — Allure / GitHub Pages](https://ItsgabrielJT.github.io/HOTEL_QA_TEST_KARATE)
+          - [Reporte DB QA — Allure / GitHub Pages](https://ItsgabrielJT.github.io/HOTEL_QA_TEST_BD)
+          - [Repositorio QA Central](https://github.com/ItsgabrielJT/QA_HOTEL_MVP)
+
+          ---
+
+          _Generado automáticamente por el pipeline E2E de [HOTEL-MVP](${{ github.server_url }}/${{ github.repository }})._
+          MARKDOWN
+
+          echo "--- Reporte generado ---"
+          cat report/E2E_REPORT.md
+
+      - name: Publicar reporte en QA_HOTEL_MVP
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
+        with:
+          github-token: ${{ secrets.QA_DISPATCH_TOKEN }}
+          script: |
+            const fs   = require('fs');
+            const path = require('path');
+
+            const content   = fs.readFileSync('report/E2E_REPORT.md', 'utf8');
+            const now       = new Date();
+            const ts        = now.toISOString().slice(0, 19).replace(/[:T]/g, '-');
+            const filePath  = `reports/${ts}-e2e-report.md`;
+            const shortSha  = context.sha.slice(0, 8);
+
+            await github.rest.repos.createOrUpdateFileContents({
+              owner:   'ItsgabrielJT',
+              repo:    'QA_HOTEL_MVP',
+              path:    filePath,
+              message: `ci(e2e): reporte ${shortSha} @ ${{ github.ref_name }}`,
+              content: Buffer.from(content).toString('base64'),
+            });
+
+            core.info(`✅ Reporte publicado en QA_HOTEL_MVP/${filePath}`);

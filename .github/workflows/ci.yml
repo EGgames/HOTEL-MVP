@@ -1,0 +1,228 @@
+name: CI — PR Validation
+
+on:
+  pull_request:
+    branches:
+      - dev
+    types: [opened, synchronize, reopened]
+  merge_group:
+    branches:
+      - dev
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Motivo de la ejecución manual (opcional)"
+        required: false
+        default: "Ejecución manual"
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write
+  actions: read
+
+jobs:
+  secret-scan:
+    name: "[ Gate 0 ] Secret Scan"
+    uses: ./.github/workflows/reusable-secrets-scan.yml
+    permissions:
+      contents: read
+      pull-requests: write
+
+  lint-backend:
+    name: "[ Gate 1a ] Lint — Backend (TypeScript)"
+    needs: secret-scan
+    uses: ./.github/workflows/reusable-lint.yml
+    permissions:
+      contents: read
+    with:
+      working-directory: backend
+      node-version: "20"
+      lint-command: >-
+        npx eslint "{src,apps,libs,test}/**/*.ts"
+        --max-warnings 0
+        --format stylish
+
+  lint-frontend:
+    name: "[ Gate 1b ] Lint — Frontend (React)"
+    needs: secret-scan
+    uses: ./.github/workflows/reusable-lint.yml
+    permissions:
+      contents: read
+    with:
+      working-directory: frontend
+      node-version: "20"
+      lint-command: >-
+        npx eslint src --ext .js,.jsx
+        --max-warnings 0
+        --format stylish
+
+  sast:
+    name: "[ Gate 1c ] SAST — CodeQL (JS / TS)"
+    needs: secret-scan
+    uses: ./.github/workflows/reusable-sast.yml
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+
+  dependency-scan:
+    name: "[ Gate 1d ] Dependency Scan — npm audit"
+    needs: secret-scan
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [backend, frontend]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: ${{ matrix.project }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.project }}
+        run: npm ci --prefer-offline
+
+      - name: npm audit — production deps (critical only, lodash high has no upstream fix)
+        working-directory: ${{ matrix.project }}
+        run: npm audit --audit-level=critical --omit=dev
+
+      - name: npm audit — dev deps (info only, non-blocking)
+        working-directory: ${{ matrix.project }}
+        run: npm audit --audit-level=high || true
+
+  test-backend:
+    name: "[ Gate 2a ] Tests — Backend (Jest)"
+    needs: [lint-backend, sast]
+    uses: ./.github/workflows/reusable-test.yml
+    permissions:
+      contents: read
+    with:
+      working-directory: backend
+      node-version: "20"
+      test-command: "npx jest --coverage --ci --forceExit"
+      coverage-artifact: coverage-backend
+
+  test-frontend:
+    name: "[ Gate 2b ] Tests — Frontend (Vitest)"
+    needs: [lint-frontend, sast]
+    uses: ./.github/workflows/reusable-test.yml
+    permissions:
+      contents: read
+    with:
+      working-directory: frontend
+      node-version: "20"
+      test-command: "npm run test:cov"
+      coverage-artifact: coverage-frontend
+
+  quality-gate:
+    name: "Quality Gate"
+    if: always()
+    needs:
+      - secret-scan
+      - lint-backend
+      - lint-frontend
+      - sast
+      - dependency-scan
+      - test-backend
+      - test-frontend
+    outputs:
+      status:      ${{ steps.gate.outputs.status }}
+      failed_jobs: ${{ steps.gate.outputs.failed_jobs }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Evaluate results
+        id: gate
+        env:
+          SECRET_SCAN: ${{ needs.secret-scan.result }}
+          LINT_BE:     ${{ needs.lint-backend.result }}
+          LINT_FE:     ${{ needs.lint-frontend.result }}
+          SAST:        ${{ needs.sast.result }}
+          DEP_SCAN:    ${{ needs.dependency-scan.result }}
+          TEST_BE:     ${{ needs.test-backend.result }}
+          TEST_FE:     ${{ needs.test-frontend.result }}
+        run: |
+          echo "=================================================="
+          echo "   PR VALIDATION — QUALITY GATE RESULTS"
+          echo "=================================================="
+          printf "  %-35s %s\n"  "Secret Scan:"         "$SECRET_SCAN"
+          printf "  %-35s %s\n"  "Lint Backend:"        "$LINT_BE"
+          printf "  %-35s %s\n"  "Lint Frontend:"       "$LINT_FE"
+          printf "  %-35s %s\n"  "SAST (CodeQL):"       "$SAST"
+          printf "  %-35s %s\n"  "Dependency Scan:"     "$DEP_SCAN"
+          printf "  %-35s %s\n"  "Tests Backend:"       "$TEST_BE"
+          printf "  %-35s %s\n"  "Tests Frontend:"      "$TEST_FE"
+          echo "=================================================="
+
+          check_job() {
+            local name="$1" result="$2"
+            if [[ "$result" == "failure" || "$result" == "cancelled" ]]; then
+              FAILED=true
+              FAILED_JOBS="${FAILED_JOBS}${name}, "
+            fi
+          }
+
+          FAILED=false
+          FAILED_JOBS=""
+          check_job "Secret Scan"    "$SECRET_SCAN"
+          check_job "Lint Backend"   "$LINT_BE"
+          check_job "Lint Frontend"  "$LINT_FE"
+          check_job "SAST"           "$SAST"
+          check_job "Dep Scan"       "$DEP_SCAN"
+          check_job "Tests Backend"  "$TEST_BE"
+          check_job "Tests Frontend" "$TEST_FE"
+
+          if [[ "$FAILED" == "true" ]]; then
+            echo "status=failed"                  >> "$GITHUB_OUTPUT"
+            echo "failed_jobs=${FAILED_JOBS%, }" >> "$GITHUB_OUTPUT"
+            echo ""
+            echo "QUALITY GATE FAILED — Jobs fallidos: ${FAILED_JOBS%, }"
+          else
+            echo "status=passed" >> "$GITHUB_OUTPUT"
+            echo "failed_jobs="  >> "$GITHUB_OUTPUT"
+            echo ""
+            echo "QUALITY GATE PASSED — Safe to merge."
+          fi
+
+      - name: Enforce gate
+        if: always() && steps.gate.outputs.status == 'failed'
+        run: |
+          echo "QUALITY GATE FAILED — Merge bloqueado."
+          echo "Revisa los jobs anteriores para ver el detalle del error."
+          exit 1
+
+  pipeline-report:
+    name: "Pipeline Report"
+    if: always() && github.event_name == 'pull_request'
+    needs:
+      - quality-gate
+      - secret-scan
+      - lint-backend
+      - lint-frontend
+      - sast
+      - dependency-scan
+      - test-backend
+      - test-frontend
+    uses: ./.github/workflows/reusable-pipeline-report.yml
+    with:
+      secret-scan-result:   ${{ needs.secret-scan.result }}
+      lint-backend-result:  ${{ needs.lint-backend.result }}
+      lint-frontend-result: ${{ needs.lint-frontend.result }}
+      sast-result:          ${{ needs.sast.result }}
+      dep-scan-result:      ${{ needs.dependency-scan.result }}
+      test-backend-result:  ${{ needs.test-backend.result }}
+      test-frontend-result: ${{ needs.test-frontend.result }}
+      overall-status:       ${{ needs.quality-gate.outputs.status }}
+      failed-jobs:          ${{ needs.quality-gate.outputs.failed_jobs }}
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}

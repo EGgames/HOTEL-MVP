@@ -1,0 +1,86 @@
+name: CI — Fast Validation Push
+
+on:
+  push:
+    branches:
+      - "feature/**"
+      - "hotfix/**"
+
+concurrency:
+  group: ci-feature-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write
+  actions: read
+
+jobs:
+  secret-scan:
+    name: "[ Gate 0 ] Secret Scan"
+    uses: ./.github/workflows/reusable-secrets-scan.yml
+    permissions:
+      contents: read
+      pull-requests: write
+
+  lint-backend:
+    name: "[ Gate 1a ] Lint — Backend (TypeScript)"
+    needs: secret-scan
+    uses: ./.github/workflows/reusable-lint.yml
+    permissions:
+      contents: read
+    with:
+      working-directory: backend
+      node-version: "20"
+      lint-command: >-
+        npx eslint "{src,apps,libs,test}/**/*.ts"
+        --max-warnings 0
+        --format stylish
+
+  lint-frontend:
+    name: "[ Gate 1b ] Lint — Frontend (React)"
+    needs: secret-scan
+    uses: ./.github/workflows/reusable-lint.yml
+    permissions:
+      contents: read
+    with:
+      working-directory: frontend
+      node-version: "20"
+      lint-command: >-
+        npx eslint src --ext .js,.jsx
+        --max-warnings 0
+        --format stylish
+
+  sast:
+    name: "[ Gate 1c ] SAST — CodeQL (JS / TS)"
+    needs: secret-scan
+    uses: ./.github/workflows/reusable-sast.yml
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+
+  test-backend:
+    name: "[ Gate 2a ] Tests — Backend (Jest)"
+    needs: lint-backend
+    uses: ./.github/workflows/reusable-test.yml
+    permissions:
+      contents: read
+    with:
+      working-directory: backend
+      node-version: "20"
+      test-command: "npx jest --ci --forceExit"
+      coverage-artifact: coverage-backend-feature
+
+  test-frontend:
+    name: "[ Gate 2b ] Tests — Frontend (Vitest)"
+    needs: lint-frontend
+    uses: ./.github/workflows/reusable-test.yml
+    permissions:
+      contents: read
+    with:
+      working-directory: frontend
+      node-version: "20"
+      test-command: "npx vitest run"
+      coverage-artifact: coverage-frontend-feature

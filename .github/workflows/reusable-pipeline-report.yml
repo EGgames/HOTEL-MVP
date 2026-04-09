@@ -1,0 +1,234 @@
+name: Reusable — Pipeline Report
+
+on:
+  workflow_call:
+    inputs:
+      secret-scan-result:
+        required: true
+        type: string
+      lint-backend-result:
+        required: true
+        type: string
+      lint-frontend-result:
+        required: true
+        type: string
+      sast-result:
+        required: true
+        type: string
+      dep-scan-result:
+        required: true
+        type: string
+      test-backend-result:
+        required: true
+        type: string
+      test-frontend-result:
+        required: true
+        type: string
+      overall-status:
+        required: true
+        type: string
+      failed-jobs:
+        required: false
+        type: string
+        default: ""
+    secrets:
+      token:
+        required: true
+
+jobs:
+  report:
+    name: "Post Pipeline Report"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build and post PR report
+        uses: actions/github-script@v7
+        env:
+          SECRET_SCAN:    ${{ inputs.secret-scan-result }}
+          LINT_BE:        ${{ inputs.lint-backend-result }}
+          LINT_FE:        ${{ inputs.lint-frontend-result }}
+          SAST:           ${{ inputs.sast-result }}
+          DEP_SCAN:       ${{ inputs.dep-scan-result }}
+          TEST_BE:        ${{ inputs.test-backend-result }}
+          TEST_FE:        ${{ inputs.test-frontend-result }}
+          OVERALL_STATUS: ${{ inputs.overall-status }}
+          FAILED_JOBS:    ${{ inputs.failed-jobs }}
+        with:
+          github-token: ${{ secrets.token }}
+          script: |
+            if (!context.payload.pull_request) {
+              core.info('Not a pull_request event — skipping report.');
+              return;
+            }
+
+            // ── Resultados de cada job ──────────────────────────────────
+            const R = {
+              secret: process.env.SECRET_SCAN,
+              lintBe: process.env.LINT_BE,
+              lintFe: process.env.LINT_FE,
+              sast:   process.env.SAST,
+              dep:    process.env.DEP_SCAN,
+              testBe: process.env.TEST_BE,
+              testFe: process.env.TEST_FE,
+            };
+
+            const overall    = process.env.OVERALL_STATUS;  // 'passed' | 'failed'
+            const failedJobs = process.env.FAILED_JOBS;
+            const sha        = context.sha.slice(0, 7);
+            const prUrl      = context.payload.pull_request.html_url;
+
+            // ── URLs directas de cada job (via API) ────────────────────
+            const { data: runsData } = await github.rest.actions.listJobsForWorkflowRun({
+              owner:    context.repo.owner,
+              repo:     context.repo.repo,
+              run_id:   context.runId,
+              per_page: 100,
+            });
+
+            const findUrl = (...keywords) => {
+              const j = runsData.jobs.find(j =>
+                keywords.every(kw => j.name.toLowerCase().includes(kw.toLowerCase()))
+              );
+              return j?.html_url ?? null;
+            };
+
+            // ── Helpers de iconos ───────────────────────────────────────
+            const statusIcon = (r) => ({ success: '✅', failure: '❌', skipped: '⏭️', cancelled: '⏸️' }[r] ?? '❓');
+            const chkIcon    = (r) => ({ success: '✔️', failure: '❌' }[r] ?? '⏭️');
+
+            // ── Sección por job ─────────────────────────────────────────
+            const jobSection = (emoji, name, result, checks, ...urlKeywords) => {
+              const url   = findUrl(...urlKeywords);
+              const lines = [
+                `${emoji} **Job: ${name}**`,
+                `Estado: ${statusIcon(result)} \`${result}\``,
+                '',
+                '**Evaluaciones realizadas:**',
+                ...checks.map(c => `  ${chkIcon(result)} ${c}`),
+              ];
+              if ((result === 'failure' || result === 'cancelled') && url) {
+                lines.push('');
+                lines.push(`[🔗 Ver logs del job →](${url})`);
+              }
+              return lines.join('\n');
+            };
+
+            // ── Header general ──────────────────────────────────────────
+            const overallIcon  = overall === 'passed' ? '✅' : '❌';
+            const overallLabel = overall === 'passed' ? 'PASÓ ✅' : 'FALLÓ ❌';
+            const failedLine   = overall === 'failed' && failedJobs
+              ? `\n**Jobs con problemas:** \`${failedJobs}\``
+              : '';
+            const mergeStatus  = overall === 'passed'
+              ? '**Este PR está listo para hacer merge.** Todos los checks pasaron.'
+              : '**Merge bloqueado.** Corrige los errores y haz push nuevamente.';
+
+            // ── Construcción del body ───────────────────────────────────
+            const sections = [
+              `# ${overallIcon} Reporte de Pipeline — PR Validation`,
+              '',
+              `**Estado General:** ${overallIcon} ${overallLabel}${failedLine}`,
+              '',
+              mergeStatus,
+              '',
+              `> Commit: \`${sha}\` · [Ver todos los checks](${prUrl}/checks)`,
+              '',
+              '---',
+              '',
+              jobSection('🔐', 'Secret Scan', R.secret, [
+                'Escaneo de secretos con Gitleaks en historial completo',
+                'Validación de patrones en archivos de configuración',
+                'Detección de credenciales, tokens y claves expuestas',
+              ], 'Gitleaks'),
+              '',
+              '---',
+              '',
+              jobSection('🔍', 'Lint — Backend (TypeScript)', R.lintBe, [
+                'npx eslint "{src,apps,libs,test}/**/*.ts" --max-warnings 0',
+                'Validación de reglas @typescript-eslint/recommended',
+                'Zero warnings enforcement — ningún warning permitido',
+              ], 'ESLint', 'backend'),
+              '',
+              '---',
+              '',
+              jobSection('🔍', 'Lint — Frontend (React)', R.lintFe, [
+                'npx eslint src --ext .js,.jsx --max-warnings 0',
+                'Validación de reglas React y React Hooks',
+                'Zero warnings enforcement — ningún warning permitido',
+              ], 'ESLint', 'frontend'),
+              '',
+              '---',
+              '',
+              jobSection('🛡️', 'SAST — CodeQL (JS / TS)', R.sast, [
+                'Análisis estático de seguridad con CodeQL',
+                'Detección de vulnerabilidades en código JavaScript/TypeScript',
+                'Carga de resultados al tab Security de GitHub',
+              ], 'CodeQL'),
+              '',
+              '---',
+              '',
+              jobSection('📦', 'Dependency Scan — npm audit', R.dep, [
+                'Auditoría de dependencias de producción con --omit=dev',
+                'Bloqueo en vulnerabilidades de severidad high y critical',
+                'Auditoría de devDependencies (informativa, no bloqueante)',
+              ], 'Dependency'),
+              '',
+              '---',
+              '',
+              jobSection('🧪', 'Tests — Backend (Jest)', R.testBe, [
+                'Compilación de TypeScript vía ts-jest',
+                'Ejecución de suite de pruebas unitarias (.spec.ts)',
+                'Cobertura de código con --coverage (threshold 80%)',
+                'Generación y upload de artefacto coverage-backend',
+              ], 'Tests', 'backend'),
+              '',
+              '---',
+              '',
+              jobSection('🧪', 'Tests — Frontend (Vitest)', R.testFe, [
+                'Ejecución de pruebas en entorno jsdom',
+                'Cobertura con @vitest/coverage-v8 (threshold 80%)',
+                'Generación y upload de artefacto coverage-frontend',
+              ], 'Tests', 'frontend'),
+              '',
+              '---',
+              '',
+              '### 📋 Resumen General',
+              '',
+              '| Job | Estado |',
+              '|-----|--------|',
+              `| 🔐 Secret Scan       | ${statusIcon(R.secret)} \`${R.secret}\` |`,
+              `| 🔍 Lint Backend      | ${statusIcon(R.lintBe)} \`${R.lintBe}\` |`,
+              `| 🔍 Lint Frontend     | ${statusIcon(R.lintFe)} \`${R.lintFe}\` |`,
+              `| 🛡️ SAST (CodeQL)     | ${statusIcon(R.sast)} \`${R.sast}\` |`,
+              `| 📦 Dependency Scan   | ${statusIcon(R.dep)} \`${R.dep}\` |`,
+              `| 🧪 Tests Backend     | ${statusIcon(R.testBe)} \`${R.testBe}\` |`,
+              `| 🧪 Tests Frontend    | ${statusIcon(R.testFe)} \`${R.testFe}\` |`,
+            ];
+
+            // ── Upsert del comentario en el PR ──────────────────────────
+            const marker   = '<!-- hotel-mvp-pipeline-report -->';
+            const fullBody = `${marker}\n${sections.join('\n')}`;
+
+            const { data: allComments } = await github.rest.issues.listComments({
+              owner:        context.repo.owner,
+              repo:         context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const prev = allComments.find(c => c.body.includes(marker));
+
+            if (prev) {
+              await github.rest.issues.updateComment({
+                owner:      context.repo.owner,
+                repo:       context.repo.repo,
+                comment_id: prev.id,
+                body:       fullBody,
+              });
+              core.info(`Report comment updated (id: ${prev.id})`);
+            } else {
+              await github.rest.issues.createComment({
+                owner:        context.repo.owner,
+                repo:         context.repo.repo,
+                issue_number: context.issue.number,
+                body:         fullBody,
+              });
+              core.info('Report comment created.');
+            }
