@@ -28,6 +28,14 @@ import { AdminCustomersController } from './controllers/admin-customers.controll
 import { AdminRoomsController } from './controllers/admin-rooms.controller';
 import { AdminHotelsController } from './controllers/admin-hotels.controller';
 
+const parse_boolean = (value: string | undefined, default_value: boolean) => {
+  if (value === undefined) {
+    return default_value;
+  }
+
+  return value.toLowerCase() === 'true';
+};
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([Admin, Customer, Reservation, Room, Hotel, Payment]),
@@ -40,7 +48,8 @@ import { AdminHotelsController } from './controllers/admin-hotels.controller';
       transport: {
         host: process.env.SMTP_HOST ?? 'localhost',
         port: parseInt(process.env.SMTP_PORT ?? '1025', 10),
-        ignoreTLS: true,
+        secure: parse_boolean(process.env.SMTP_SECURE, false),
+        ignoreTLS: parse_boolean(process.env.SMTP_IGNORE_TLS, true),
         auth:
           process.env.SMTP_USER
             ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }

@@ -34,9 +34,13 @@ services:
       HOLD_DURATION_MINUTES: 10
       PAYMENT_SIMULATOR_DECLINE_RATE: 0.2
       JWT_SECRET: ${JWT_SECRET:-hotel-admin-secret-dev}
-      SMTP_HOST: mailhog
-      SMTP_PORT: 1025
-      SMTP_FROM: '"Hotel Booking" <noreply@hotel.com>'
+      SMTP_HOST: ${SMTP_HOST:-mailhog}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-"Hotel Booking" <noreply@hotel.com>}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_IGNORE_TLS: ${SMTP_IGNORE_TLS:-true}
     ports:
       - '3000:3000'
     depends_on:
