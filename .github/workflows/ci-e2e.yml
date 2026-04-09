@@ -1,4 +1,4 @@
-name: CI — E2E QA Report
+name: CI — SMOKE TEST
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Dispara las suites E2E externas (Karate + DB QA) cuando hay push a dev,
