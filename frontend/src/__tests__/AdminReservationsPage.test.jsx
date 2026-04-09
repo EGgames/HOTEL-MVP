@@ -1,8 +1,10 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { AdminReservationsPage } from '../pages/AdminReservationsPage';
 import { useAdminReservations } from '../hooks/useAdminReservations';
+import { useAdminRooms } from '../hooks/useAdminRooms';
 
 vi.mock('../hooks/useAdminReservations');
+vi.mock('../hooks/useAdminRooms');
 vi.mock('../pages/AdminReservationsPage.module.css', () => ({ default: {} }));
 vi.mock('../components/DataTable/DataTable.module.css', () => ({ default: {} }));
 vi.mock('../components/AdminFormModal/AdminFormModal.module.css', () => ({ default: {} }));
@@ -16,6 +18,7 @@ describe('AdminReservationsPage', () => {
   const fetchReservations = vi.fn();
   const addReservation = vi.fn();
   const cancelReservation = vi.fn();
+  const fetchRooms = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -26,6 +29,10 @@ describe('AdminReservationsPage', () => {
       fetchReservations,
       addReservation,
       cancelReservation,
+    });
+    useAdminRooms.mockReturnValue({
+      rooms: [{ id: 'r1', room_number: '101', hotel_name: 'Hotel Sol', type: 'SINGLE' }],
+      fetchRooms,
     });
   });
 
@@ -45,10 +52,10 @@ describe('AdminReservationsPage', () => {
 
   it('shows error', () => {
     useAdminReservations.mockReturnValue({
-      reservations: [], isLoading: false, error: 'Error', fetchReservations, addReservation, cancelReservation,
+      reservations: [], isLoading: false, error: 'Something went wrong', fetchReservations, addReservation, cancelReservation,
     });
     render(<AdminReservationsPage token="tok" />);
-    expect(screen.getByText('Error')).toBeInTheDocument();
+    expect(screen.getAllByText('Something went wrong').length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders reservations in table', () => {
@@ -80,7 +87,7 @@ describe('AdminReservationsPage', () => {
     addReservation.mockResolvedValue({ id: '1' });
     render(<AdminReservationsPage token="tok" />);
     fireEvent.click(screen.getByText('+ Nueva reserva'));
-    fireEvent.change(screen.getByLabelText('Room ID'), { target: { value: 'r1', name: 'room_id' } });
+    fireEvent.change(screen.getByLabelText('Habitación'), { target: { value: 'r1', name: 'room_id' } });
     fireEvent.change(screen.getByLabelText('Entrada'), { target: { value: '2025-01-01', name: 'checkin' } });
     fireEvent.change(screen.getByLabelText('Salida'), { target: { value: '2025-01-03', name: 'checkout' } });
     fireEvent.change(screen.getByLabelText('Email cliente'), { target: { value: 'a@b.com', name: 'customer_email' } });
