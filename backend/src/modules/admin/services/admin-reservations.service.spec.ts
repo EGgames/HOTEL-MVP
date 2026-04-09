@@ -6,6 +6,7 @@ import { AdminReservationsService } from './admin-reservations.service';
 import { Reservation, ReservationStatus } from '../../reservations/entities/reservation.entity';
 import { Room } from '../../rooms/entities/room.entity';
 import { Hotel } from '../../hotels/entities/hotel.entity';
+import { Customer } from '../entities/customer.entity';
 import { MailService } from './mail.service';
 
 describe('AdminReservationsService', () => {
@@ -31,6 +32,11 @@ describe('AdminReservationsService', () => {
     findOne: jest.fn(),
   };
 
+  const mockCustomerRepository = {
+    findOne: jest.fn(),
+    save: jest.fn(),
+  };
+
   const mockManager = {
     findOne: jest.fn(),
     createQueryBuilder: jest.fn(),
@@ -53,6 +59,7 @@ describe('AdminReservationsService', () => {
         { provide: getRepositoryToken(Reservation), useValue: mockReservationRepository },
         { provide: getRepositoryToken(Room), useValue: mockRoomRepository },
         { provide: getRepositoryToken(Hotel), useValue: mockHotelRepository },
+        { provide: getRepositoryToken(Customer), useValue: mockCustomerRepository },
         { provide: getDataSourceToken(), useValue: mockDataSource },
         { provide: MailService, useValue: mockMailService },
       ],
