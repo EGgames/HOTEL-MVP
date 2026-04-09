@@ -141,6 +141,68 @@ jobs:
             core.setOutput('conclusion', conclusion);
             core.setOutput('run-url',    runUrl);
 
+
+  # ───────────────────────────────────────────────
+  # Fase 2c — Esperar Serenity UI QA (corre en paralelo)
+  # ───────────────────────────────────────────────
+  wait-serenity:
+    name: "[ E2E 2c ] Esperar — Serenity QA"
+    needs: dispatch-qa
+    runs-on: ubuntu-22.04
+    timeout-minutes: 50
+    outputs:
+      run-id:     ${{ steps.poll.outputs.run-id }}
+      conclusion: ${{ steps.poll.outputs.conclusion }}
+      run-url:    ${{ steps.poll.outputs.run-url }}
+
+    steps:
+      - name: Sondear workflow Serenity QA hasta completitud
+        id: poll
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
+        timeout-minutes: 45
+        with:
+          github-token: ${{ secrets.QA_DISPATCH_TOKEN }}
+          script: |
+            const owner        = 'ItsgabrielJT';
+            const repo         = 'HOTEL_QA_TEST_SERENITY';
+            const workflowFile = 'serenity-smoke.yml';
+            const cutoff       = new Date('${{ needs.dispatch-qa.outputs.dispatch-time }}');
+
+            // Hasta 6 min para que aparezca el run
+            let runId = null;
+            for (let i = 0; i < 36; i++) {
+              await new Promise(r => setTimeout(r, 10_000));
+              const { data } = await github.rest.actions.listWorkflowRuns({
+                owner, repo, workflow_id: workflowFile,
+                event: 'repository_dispatch', per_page: 10,
+              });
+              const found = data.workflow_runs.find(r => new Date(r.created_at) >= cutoff);
+              if (found) { runId = found.id; core.info(`Run Serenity QA encontrado: ${runId}`); break; }
+            }
+
+            if (!runId) {
+              core.setFailed('No se detectó el run de Serenity QA tras 6 minutos. Verifica que el token tenga acceso al repo.');
+              return;
+            }
+
+            // Hasta 40 min esperando completitud
+            let conclusion = 'timed_out';
+            let runUrl     = `https://github.com/${owner}/${repo}/actions/runs/${runId}`;
+            for (let i = 0; i < 240; i++) {
+              await new Promise(r => setTimeout(r, 10_000));
+              const { data: run } = await github.rest.actions.getWorkflowRun({ owner, repo, run_id: runId });
+              if (run.status === 'completed') {
+                conclusion = run.conclusion;
+                runUrl     = run.html_url;
+                core.info(`Serenity QA completado: ${conclusion}`);
+                break;
+              }
+            }
+
+            core.setOutput('run-id',     String(runId));
+            core.setOutput('conclusion', conclusion);
+            core.setOutput('run-url',    runUrl);
+
   # ───────────────────────────────────────────────
   # Fase 2b — Esperar DB QA (corre en paralelo con wait-karate)
   # ───────────────────────────────────────────────
@@ -207,7 +269,7 @@ jobs:
   # ───────────────────────────────────────────────
   publish-report:
     name: "[ E2E 3 ] Publicar reporte consolidado"
-    needs: [dispatch-qa, wait-karate, wait-db-qa]
+    needs: [dispatch-qa, wait-karate, wait-db-qa, wait-serenity]
     if: always()
     runs-on: ubuntu-22.04
 
@@ -220,13 +282,16 @@ jobs:
           DB_CONCLUSION:     ${{ needs.wait-db-qa.outputs.conclusion }}
           DB_RUN_ID:         ${{ needs.wait-db-qa.outputs.run-id }}
           DB_RUN_URL:        ${{ needs.wait-db-qa.outputs.run-url }}
+          SERENITY_CONCLUSION: ${{ needs.wait-serenity.outputs.conclusion }}
+          SERENITY_RUN_ID:     ${{ needs.wait-serenity.outputs.run-id }}
+          SERENITY_RUN_URL:    ${{ needs.wait-serenity.outputs.run-url }}
         run: |
           mkdir -p report
 
           badge() { [ "$1" = "success" ] && echo "✅ PASSED" || echo "❌ ${1:-unknown}"; }
 
           overall="FAILED"
-          if [ "$KARATE_CONCLUSION" = "success" ] && [ "$DB_CONCLUSION" = "success" ]; then
+          if [ "$KARATE_CONCLUSION" = "success" ] && [ "$DB_CONCLUSION" = "success" ] && [ "$SERENITY_CONCLUSION" = "success" ]; then
             overall="PASSED"
           fi
 
@@ -252,6 +317,7 @@ jobs:
           |---|---|---|
           | Karate E2E (API + ZAP) | $(badge "$KARATE_CONCLUSION") | [#${KARATE_RUN_ID}](${KARATE_RUN_URL}) |
           | Database QA (pytest) | $(badge "$DB_CONCLUSION") | [#${DB_RUN_ID}](${DB_RUN_URL}) |
+          | Serenity UI E2E | $(badge "$SERENITY_CONCLUSION") | [#${SERENITY_RUN_ID}](${SERENITY_RUN_URL}) |
 
           ---
 
@@ -259,6 +325,7 @@ jobs:
 
           - [Reporte Karate — Allure / GitHub Pages](https://ItsgabrielJT.github.io/HOTEL_QA_TEST_KARATE)
           - [Reporte DB QA — Allure / GitHub Pages](https://ItsgabrielJT.github.io/HOTEL_QA_TEST_BD)
+          - [Reporte Serenity — GitHub Pages](https://ItsgabrielJT.github.io/HOTEL_QA_TEST_SERENITY)
           - [Repositorio QA Central](https://github.com/ItsgabrielJT/QA_HOTEL_MVP)
 
           ---
