@@ -19,3 +19,5 @@ export async function getReservationByCode(code) {
   });
   return res.data;
 }
+
+export const lookupReservation = getReservationByCode;

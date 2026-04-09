@@ -28,7 +28,10 @@ export function CheckoutForm({ hold, room, remainingSeconds, isExpired, onExpire
       setFormError('Por favor ingresá un email válido.');
       return;
     }
-    onPaymentSubmit(totalAmount);
+    onPaymentSubmit(totalAmount, {
+      customer_email: guestEmail.trim(),
+      customer_name: guestName.trim(),
+    });
   }
 
   return (

@@ -7,9 +7,12 @@ const API_BASE = import.meta.env.VITE_API_URL ?? '';
  * @param {string} checkout — YYYY-MM-DD
  * @param {string} [hotelId]
  */
-export async function getAvailableRooms(checkin, checkout, hotelId) {
+export async function getAvailableRooms(checkin, checkout, hotelId, { city, minPrice, maxPrice } = {}) {
   const params = { checkin, checkout };
   if (hotelId) params.hotel_id = hotelId;
+  if (city) params.city = city;
+  if (minPrice != null) params.min_price = minPrice;
+  if (maxPrice != null) params.max_price = maxPrice;
 
   const res = await axios.get(`${API_BASE}/api/v1/rooms/available`, { params });
   return res.data;

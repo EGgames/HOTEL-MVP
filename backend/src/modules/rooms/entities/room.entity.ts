@@ -42,6 +42,15 @@ export class Room {
   @Column({ type: 'text', array: true, default: [] })
   amenities: string[];
 
+  @Column({ type: 'smallint', nullable: true })
+  floor: number | null;
+
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  wing: string | null;
+
+  @Column({ type: 'varchar', length: 500, nullable: true, name: 'image_url' })
+  image_url: string | null;
+
   @ManyToOne(() => Hotel, (hotel) => hotel.rooms, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'hotel_id' })
   hotel: Hotel;

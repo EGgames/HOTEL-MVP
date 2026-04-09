@@ -10,6 +10,7 @@ import { Repository, DataSource } from 'typeorm';
 import { Payment, PaymentStatus } from './entities/payment.entity';
 import { Hold, HoldStatus } from '../holds/entities/hold.entity';
 import { Reservation, ReservationStatus } from '../reservations/entities/reservation.entity';
+import { Customer } from '../admin/entities/customer.entity';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { generateReservationCode } from '../../common/utils/reservation-code.util';
 
@@ -80,8 +81,24 @@ export class PaymentsService {
           checkin: hold.checkin,
           checkout: hold.checkout,
           status: ReservationStatus.CONFIRMED,
+          customer_email: dto.customer_email ?? null,
+          customer_name: dto.customer_name ?? null,
         });
         const savedReservation = await manager.save(Reservation, reservation);
+
+        // Auto-register customer if info provided
+        if (dto.customer_email) {
+          const existingCustomer = await manager.findOne(Customer, {
+            where: { email: dto.customer_email },
+          });
+          if (!existingCustomer) {
+            const customer = manager.create(Customer, {
+              email: dto.customer_email,
+              name: dto.customer_name ?? dto.customer_email,
+            });
+            await manager.save(Customer, customer);
+          }
+        }
 
         await manager.update(Hold, { id: dto.hold_id }, {
           reservation_id: savedReservation.id,

@@ -2,12 +2,14 @@ import {
   Injectable,
   ConflictException,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { Room } from './entities/room.entity';
 import { Hold, HoldStatus } from '../holds/entities/hold.entity';
 import { Reservation, ReservationStatus } from '../reservations/entities/reservation.entity';
+import { Hotel } from '../hotels/entities/hotel.entity';
 import { AvailabilityQueryDto } from './dto/availability-query.dto';
 import { CreateHoldDto } from './dto/create-hold.dto';
 
@@ -20,12 +22,18 @@ export class RoomsService {
     private readonly holdRepository: Repository<Hold>,
     @InjectRepository(Reservation)
     private readonly reservationRepository: Repository<Reservation>,
+    @InjectRepository(Hotel)
+    private readonly hotelRepository: Repository<Hotel>,
     @InjectDataSource()
     private readonly dataSource: DataSource,
   ) {}
 
   async getAvailableRooms(query: AvailabilityQueryDto): Promise<Room[]> {
-    const { checkin, checkout, hotel_id } = query;
+    const { checkin, checkout, hotel_id, city, min_price, max_price } = query;
+
+    if (min_price != null && max_price != null && min_price > max_price) {
+      throw new BadRequestException('min_price no puede ser mayor que max_price');
+    }
 
     const unavailableFromHolds = await this.holdRepository
       .createQueryBuilder('hold')
@@ -51,10 +59,23 @@ export class RoomsService {
 
     const qb = this.roomRepository
       .createQueryBuilder('room')
+      .leftJoinAndSelect('room.hotel', 'hotel')
       .orderBy('room.price_per_night', 'ASC');
 
     if (hotel_id) {
       qb.andWhere('room.hotel_id = :hotel_id', { hotel_id });
+    }
+
+    if (city) {
+      qb.andWhere('LOWER(hotel.city) LIKE LOWER(:city)', { city: `%${city}%` });
+    }
+
+    if (min_price != null) {
+      qb.andWhere('room.price_per_night >= :min_price', { min_price });
+    }
+
+    if (max_price != null) {
+      qb.andWhere('room.price_per_night <= :max_price', { max_price });
     }
 
     if (blockedIds.length > 0) {

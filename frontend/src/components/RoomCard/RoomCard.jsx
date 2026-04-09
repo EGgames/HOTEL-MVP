@@ -5,10 +5,20 @@ const TYPE_LABELS = { SINGLE: 'Individual', DOUBLE: 'Doble', SUITE: 'Suite' };
 export function RoomCard({ room, onSelect, isLoading }) {
   return (
     <article className={styles.card}>
+      {room.image_url && (
+        <img src={room.image_url} alt={`Habitación ${room.room_number}`} className={styles.image} />
+      )}
+
       <div className={styles.header}>
         <span className={styles.type}>{TYPE_LABELS[room.type] ?? room.type}</span>
         <span className={styles.number}>#{room.room_number}</span>
       </div>
+
+      {room.hotel && (
+        <div className={styles.location}>
+          📍 {room.hotel.city}{room.hotel.country ? `, ${room.hotel.country}` : ''}
+        </div>
+      )}
 
       <div className={styles.price}>
         <span className={styles.amount}>

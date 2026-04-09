@@ -85,7 +85,11 @@ describe('SearchPage', () => {
     fireEvent.change(checkoutInput, { target: { value: '2026-05-12' } });
     fireEvent.click(screen.getByRole('button', { name: /buscar/i }));
 
-    expect(mockSearch).toHaveBeenCalledWith('2026-05-10', '2026-05-12');
+    expect(mockSearch).toHaveBeenCalledWith('2026-05-10', '2026-05-12', undefined, {
+      city: undefined,
+      minPrice: undefined,
+      maxPrice: undefined,
+    });
   });
 
   it('calls requestHold and navigates on room select', async () => {

@@ -14,10 +14,10 @@ export function SearchPage() {
   const [dates, setDates] = useState({ checkin: '', checkout: '' });
   const [toastError, setToastError] = useState('');
 
-  function handleSearch(checkin, checkout) {
+  function handleSearch(checkin, checkout, filters = {}) {
     setDates({ checkin, checkout });
     setToastError('');
-    search(checkin, checkout);
+    search(checkin, checkout, undefined, filters);
   }
 
   async function handleSelectRoom(room) {

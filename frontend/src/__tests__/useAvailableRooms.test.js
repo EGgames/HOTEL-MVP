@@ -42,7 +42,7 @@ describe('useAvailableRooms', () => {
       await Promise.resolve();
     });
 
-    expect(getAvailableRooms).toHaveBeenCalledWith('2026-05-10', '2026-05-12', 'hotel-1');
+    expect(getAvailableRooms).toHaveBeenCalledWith('2026-05-10', '2026-05-12', 'hotel-1', {});
     expect(result.current.rooms).toEqual(mockRooms);
     expect(result.current.error).toBeNull();
     expect(result.current.isLoading).toBe(false);

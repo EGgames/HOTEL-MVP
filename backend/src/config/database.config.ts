@@ -5,6 +5,8 @@ import { Room } from '../modules/rooms/entities/room.entity';
 import { Hold } from '../modules/holds/entities/hold.entity';
 import { Payment } from '../modules/payments/entities/payment.entity';
 import { Reservation } from '../modules/reservations/entities/reservation.entity';
+import { Admin } from '../modules/admin/entities/admin.entity';
+import { Customer } from '../modules/admin/entities/customer.entity';
 
 export default registerAs(
   'database',
@@ -15,7 +17,7 @@ export default registerAs(
     username: process.env.DB_USER ?? 'hotel_user',
     password: process.env.DB_PASSWORD ?? 'hotel_pass',
     database: process.env.DB_NAME ?? 'hotel_booking',
-    entities: [Hotel, Room, Hold, Payment, Reservation],
+    entities: [Hotel, Room, Hold, Payment, Reservation, Admin, Customer],
     synchronize: process.env.NODE_ENV !== 'production',
     logging: process.env.NODE_ENV === 'development',
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: true } : false,

@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsNumber, IsPositive, IsUUID } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsNumber, IsOptional, IsPositive, IsString, IsUUID } from 'class-validator';
 
 export class CreatePaymentDto {
   @IsUUID('4', { message: 'hold_id debe ser un UUID válido' })
@@ -10,4 +10,12 @@ export class CreatePaymentDto {
 
   @IsNotEmpty({ message: 'idempotency_key es obligatorio' })
   idempotency_key: string;
+
+  @IsOptional()
+  @IsEmail({}, { message: 'customer_email debe ser un email válido' })
+  customer_email?: string;
+
+  @IsOptional()
+  @IsString()
+  customer_name?: string;
 }

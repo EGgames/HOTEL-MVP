@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ConfirmationPage } from '../pages/ConfirmationPage';
 import { useReservation } from '../hooks/useReservation';
@@ -73,6 +73,25 @@ describe('ConfirmationPage', () => {
 
     renderPage();
 
-    expect(screen.getByText(/Volver al inicio/i)).toBeInTheDocument();
+    const btn = screen.getByText(/Volver al inicio/i);
+    expect(btn).toBeInTheDocument();
+    fireEvent.click(btn);
+    expect(screen.getByText('Home')).toBeInTheDocument();
+  });
+
+  it('navigates home on "Realizar otra reserva" click', () => {
+    useReservation.mockReturnValue({
+      reservation: {
+        reservation_code: 'ABC12345', room_number: '101',
+        checkin: '2026-05-10', checkout: '2026-05-12',
+        nights: 2, price_per_night: 100, total_amount: 200, status: 'CONFIRMED',
+      },
+      isLoading: false, error: null,
+    });
+
+    renderPage();
+
+    fireEvent.click(screen.getByText(/Realizar otra reserva/i));
+    expect(screen.getByText('Home')).toBeInTheDocument();
   });
 });

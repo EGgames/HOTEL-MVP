@@ -1,5 +1,6 @@
-import { IsDateString, IsOptional, IsUUID, Validate } from 'class-validator';
+import { IsDateString, IsOptional, IsUUID, IsNumber, IsPositive, IsString, Validate } from 'class-validator';
 import { ValidatorConstraint, ValidatorConstraintInterface, ValidationArguments } from 'class-validator';
+import { Type } from 'class-transformer';
 
 @ValidatorConstraint({ name: 'isAfterCheckin', async: false })
 export class IsAfterCheckin implements ValidatorConstraintInterface {
@@ -40,4 +41,20 @@ export class AvailabilityQueryDto {
   @IsOptional()
   @IsUUID('4', { message: 'hotel_id debe ser un UUID válido' })
   hotel_id?: string;
+
+  @IsOptional()
+  @IsString({ message: 'city debe ser un string' })
+  city?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({}, { message: 'min_price debe ser un número' })
+  @IsPositive({ message: 'min_price debe ser mayor que cero' })
+  min_price?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({}, { message: 'max_price debe ser un número' })
+  @IsPositive({ message: 'max_price debe ser mayor que cero' })
+  max_price?: number;
 }
